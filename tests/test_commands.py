@@ -161,3 +161,12 @@ def test_custom_commands_from_the_process(make_process):
 
 def test_public_api_exports_command_types():
     assert ht.Argument is Argument and ht.Command is Command
+
+
+def test_run_changing_commands_are_refused_after_the_session_ended(context):
+    context.control.close()
+    for line in ("epochs 9", "step 2", "pause", "resume", "delay 10"):
+        result = run(context, line)
+        assert not result.ok and "has ended" in result.output, line
+    assert run(context, "stop").output == "the training session has already ended"
+    assert "fc1" in run(context, "weights").output  # inspection keeps working

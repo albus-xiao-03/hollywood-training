@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ..sync.events import EpochRecord, TrainingState
+from ..sync.events import EpochRecord, TrainingState, best_epoch
 from ..tracking.weights import WeightSnapshot
 
 
@@ -31,10 +31,5 @@ class TrainingResult:
         return [record.val_loss for record in self.history]
 
     def best_epoch(self) -> EpochRecord | None:
-        """Epoch with the lowest validation loss (training loss when not validating)."""
-        if not self.history:
-            return None
-        return min(
-            self.history,
-            key=lambda r: r.val_loss if r.val_loss is not None else r.train_loss,
-        )
+        """Epoch with the lowest finite validation loss (training loss when not validating)."""
+        return best_epoch(self.history)

@@ -1,6 +1,9 @@
 """``CommandContext``: what a command handler can see and do.
 
-Handlers run on the frontend's thread. They read the session through
+Handlers run on the thread that serves command input: the GUI thread for the
+in-process window, and a command thread of the training process for the default window
+process (the line is typed in the window and sent back). The console frontend takes no
+commands. Handlers read the session through
 :class:`~hollywood_training.sync.session.SessionState`, request changes through
 :class:`~hollywood_training.sync.control.TrainingControl`, and anything touching the
 model or optimizer goes through :meth:`CommandContext.submit`, which hands it to the

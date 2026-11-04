@@ -103,7 +103,7 @@ class ConsoleFrontend:
         self._write(f"{event.state.value.upper()}: {event.reason} in {fmt.duration(event.elapsed)}")
         best = self.session.best_record()
         if best is not None:
-            value = best.val_loss if best.val_loss is not None else best.train_loss
+            value = best.monitored_loss
             self._write(f"best loss {fmt.loss(value)} at epoch {best.epoch}")
         if event.error:
             self._write(f"error: {event.error}")

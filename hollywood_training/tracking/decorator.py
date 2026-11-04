@@ -64,7 +64,14 @@ def _register(target: T, options: TrackOptions) -> T:
 
 
 @overload
-def track(target: T, /) -> T: ...
+def track(
+    target: T,
+    /,
+    *,
+    name: str | None = ...,
+    input_labels: Sequence[str] | None = ...,
+    output_labels: Sequence[str] | None = ...,
+) -> T: ...
 
 
 @overload

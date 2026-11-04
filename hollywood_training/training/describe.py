@@ -105,11 +105,6 @@ def current_learning_rate(optimizer: Any) -> float:
     return float(groups[0].get("lr", math.nan))
 
 
-def set_learning_rate(optimizer: Any, value: float) -> None:
-    for group in optimizer.param_groups:
-        group["lr"] = value
-
-
 def count_batches(data: Iterable[Any] | None) -> int | None:
     """``len(data)`` when the data source knows it (a ``DataLoader`` does)."""
     if data is None:

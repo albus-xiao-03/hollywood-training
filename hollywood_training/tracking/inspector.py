@@ -87,7 +87,7 @@ def build_architecture(
             continue
         role = classify(module)
         if role is LayerRole.CONNECTION:
-            if id(module) in seen_connections:  # shared weights are drawn once
+            if id(module) in seen_connections:  # a module that runs twice is drawn once
                 current = next(layer for layer in layers if layer.module is module)
                 continue
             seen_connections.add(id(module))
@@ -137,6 +137,7 @@ def architecture_signature(architecture: NetworkArchitecture) -> tuple:
         ),
         tuple(architecture.unsupported),
         architecture.total_parameters,
+        architecture.traced,
     )
 
 

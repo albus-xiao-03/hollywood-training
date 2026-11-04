@@ -223,3 +223,46 @@ def test_connection_matrix_linear_conv_transposed_and_embedding():
     embedding = nn.Embedding(10, 3)
     matrix = connection_matrix(embedding, full(10), full(3))
     torch.testing.assert_close(matrix, embedding.weight.detach().T)
+
+
+# ------------------------------------------------------------- review fixes
+def test_wrapped_models_keep_their_track_options():
+    @track(name="inner", output_labels=("a", "b"))
+    class Inner(nn.Module):
+        def __init__(self) -> None:
+            super().__init__()
+            self.fc = nn.Linear(2, 2)
+
+    architecture = NetworkTracker(nn.DataParallel(Inner())).architecture
+    assert architecture.display_name == "inner" and architecture.output_labels == ("a", "b")
+
+
+def test_a_failed_forward_pass_is_not_adopted():
+    class Fails(nn.Module):
+        def __init__(self) -> None:
+            super().__init__()
+            self.fc1 = nn.Linear(2, 3)
+            self.fc2 = nn.Linear(3, 1)
+
+        def forward(self, x):
+            self.fc1(x)
+            raise RuntimeError("bad batch")
+
+    model = Fails()
+    tracker = NetworkTracker(model)
+    tracker.begin_trace()
+    with pytest.raises(RuntimeError):
+        model(torch.randn(2, 2))
+    assert tracker.end_trace() is False
+    assert [layer.name for layer in tracker.architecture.layers] == ["fc1", "fc2"]
+    assert not tracker.architecture.traced
+
+
+def test_embedding_bag_is_drawn_like_an_embedding():
+    assert connection_shape(nn.EmbeddingBag(10, 3)) == (10, 3)
+
+
+def test_display_indices_respects_small_limits():
+    assert display_indices(10, 1).tolist() == [0]
+    with pytest.raises(ValueError):
+        display_indices(10, 0)

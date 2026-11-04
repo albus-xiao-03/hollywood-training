@@ -19,7 +19,8 @@ event                  synchronous  sent when
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+import math
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -67,6 +68,17 @@ class EpochRecord:
     duration: float = 0.0  # seconds spent training + validating
     train_batches: int = 0
     val_batches: int = 0
+
+    @property
+    def monitored_loss(self) -> float:
+        """The loss that decides "best": validation loss if there is one, else training loss."""
+        return self.val_loss if self.val_loss is not None else self.train_loss
+
+
+def best_epoch(records: Iterable[EpochRecord]) -> EpochRecord | None:
+    """The record with the lowest finite :attr:`EpochRecord.monitored_loss` (None if none)."""
+    finite = [record for record in records if math.isfinite(record.monitored_loss)]
+    return min(finite, key=lambda record: record.monitored_loss) if finite else None
 
 
 @dataclass(frozen=True, slots=True)

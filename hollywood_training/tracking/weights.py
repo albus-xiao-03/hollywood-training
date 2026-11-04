@@ -33,7 +33,7 @@ class LayerWeights:
     name: str
     matrix: np.ndarray  # (len(out_index), len(in_index)) float32
     bias: np.ndarray | None  # (len(out_index),) float32
-    delta: np.ndarray | None  # change of `matrix` since the previous snapshot
+    delta: np.ndarray | None  # change of `matrix` since the previous *baseline* snapshot
     in_index: np.ndarray  # displayed input feature indices
     out_index: np.ndarray  # displayed output feature indices
     in_features: int
@@ -62,9 +62,12 @@ class WeightSnapshot:
 
 
 def display_indices(size: int, limit: int) -> np.ndarray:
-    """Evenly spaced feature indices, at most ``limit`` of them, always incl. first and last."""
+    """Evenly spaced feature indices: at most ``limit`` (>= 1) of them, first and last
+    included whenever ``limit >= 2``."""
+    if limit < 1:
+        raise ValueError("limit must be at least 1")
     if size <= 0:
         return np.zeros(0, dtype=np.int64)
     if size <= limit:
         return np.arange(size, dtype=np.int64)
-    return np.unique(np.linspace(0, size - 1, max(limit, 2)).round().astype(np.int64))
+    return np.unique(np.linspace(0, size - 1, limit).round().astype(np.int64))

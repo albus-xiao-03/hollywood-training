@@ -23,7 +23,7 @@ CONVOLUTION_LAYERS = _public_classes("Conv1d", "Conv2d", "Conv3d")
 TRANSPOSED_CONVOLUTION_LAYERS = _public_classes(
     "ConvTranspose1d", "ConvTranspose2d", "ConvTranspose3d"
 )
-EMBEDDING_LAYERS = _public_classes("Embedding")
+EMBEDDING_LAYERS = _public_classes("Embedding", "EmbeddingBag")
 ACTIVATION_LAYERS = _public_classes(
     "ReLU", "ReLU6", "LeakyReLU", "PReLU", "RReLU", "ELU", "SELU", "CELU", "GELU", "SiLU",
     "Mish", "Sigmoid", "LogSigmoid", "Hardsigmoid", "Tanh", "Hardtanh", "Tanhshrink",

@@ -2,8 +2,8 @@
 
 An output log plus a command line with history (Up / Down) and Tab completion of command
 names. Entered lines are emitted as :attr:`TerminalPanel.command_entered`; the main window
-executes them through the :class:`~hollywood_training.commands.registry.CommandRegistry`
-and writes the result back with :meth:`TerminalPanel.write`.
+echoes them and passes them on to its frontend, which executes them and writes the result
+back with :meth:`TerminalPanel.write`.
 """
 
 from __future__ import annotations

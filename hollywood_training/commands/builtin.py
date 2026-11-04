@@ -1,23 +1,26 @@
 """The built-in command set for controlling and inspecting a managed training session.
 
-=================  ===========================================================
-``help [cmd]``     list commands, or details of one
-``status``         state, epoch, losses, learning rate, timer, ETA
-``pause``          pause at the next batch boundary
-``resume``         continue (aliases: ``continue``, ``start``)
-``step [n]``       run ``n`` more epochs (default 1), then pause
-``stop``           end training at the next batch boundary
-``epochs <n>``     change the total number of epochs (also continues a finished run)
-``lr <value>``     set the learning rate of every parameter group
-``delay <ms>``     wait this long after every epoch (0 = full speed)
-``history [n]``    the last ``n`` epochs (default 10)
-``arch``           the tracked architecture (aliases: ``layers``, ``architecture``)
-``weights [name]`` weight statistics of every layer, or one layer in detail
-``save <path>``    save the model's ``state_dict`` with ``torch.save``
-``screenshot [p]`` save a PNG of the window (GUI only)
-``clear``          clear the terminal (alias: ``cls``)
-``quit``           stop training and close the window (alias: ``exit``)
-=================  ===========================================================
+======================  ======================================================
+``help [command]``      list commands, or details of one (alias: ``?``)
+``status``              state, epoch, losses, learning rate, timer, ETA
+``pause``               pause at the next batch boundary
+``resume``              continue (aliases: ``continue``, ``start``)
+``step [epochs]``       run more epochs (default 1), then pause
+``stop``                end training at the next batch boundary
+``epochs <total>``      change the total number of epochs (also continues a finished run)
+``lr <value>``          set the learning rate of every parameter group
+``delay <ms>``          wait this long after every epoch (0 = full speed)
+``history [count]``     the last epochs (default 10)
+``arch``                the tracked architecture (aliases: ``layers``, ``architecture``)
+``weights [layer]``     weight statistics of every layer, or one layer in detail
+``save <path>``         save the model's ``state_dict`` with ``torch.save``
+``screenshot [path]``   save a PNG of the window (GUI only)
+``clear``               clear the terminal (alias: ``cls``)
+``quit``                stop training and close the window (alias: ``exit``)
+======================  ======================================================
+
+Commands that change the run are refused once the training session has ended
+(``TrainingControl.closed``); inspection, ``lr`` and ``save`` keep working.
 """
 
 from __future__ import annotations
@@ -59,12 +62,19 @@ def _positive_float(text: str) -> float:
     return value
 
 
-def _queued(ctx: CommandContext, message: str | None, description: str) -> str:
+def _queued(message: str | None, description: str) -> str:
     return message if message is not None else f"{description} - applied at the next batch boundary"
+
+
+def _require_session(ctx: CommandContext) -> None:
+    """Refuse run-changing commands once the training thread has exited."""
+    if ctx.control.closed:
+        raise CommandError("the training session has ended")
 
 
 # ------------------------------------------------------------------ training
 def _pause(ctx: CommandContext) -> str:
+    _require_session(ctx)
     state = ctx.session.state
     if not state.active:
         raise CommandError(f"training is {state.value}, nothing to pause")
@@ -75,6 +85,7 @@ def _pause(ctx: CommandContext) -> str:
 
 
 def _resume(ctx: CommandContext) -> str:
+    _require_session(ctx)
     if not ctx.control.paused and ctx.session.state is not TrainingState.PAUSED:
         return "not paused"
     ctx.control.resume()
@@ -82,6 +93,7 @@ def _resume(ctx: CommandContext) -> str:
 
 
 def _step(ctx: CommandContext, epochs: int) -> str:
+    _require_session(ctx)
     if not ctx.session.state.active:
         raise CommandError(f"training is {ctx.session.state.value}; use 'epochs <n>' to extend it")
     ctx.control.step(epochs)
@@ -90,6 +102,8 @@ def _step(ctx: CommandContext, epochs: int) -> str:
 
 def _stop(ctx: CommandContext) -> str:
     state = ctx.session.state
+    if ctx.control.closed:
+        return "the training session has already ended"
     if not state.active and state is not TrainingState.FINISHED:
         return f"training already {state.value}"
     ctx.control.stop()
@@ -97,6 +111,7 @@ def _stop(ctx: CommandContext) -> str:
 
 
 def _epochs(ctx: CommandContext, total: int) -> str:
+    _require_session(ctx)
     if ctx.session.state in (TrainingState.STOPPED, TrainingState.FAILED):
         raise CommandError(f"training has {ctx.session.state.value}; it cannot be extended")
     try:
@@ -123,10 +138,11 @@ def _set_learning_rate(value: float):
 
 def _lr(ctx: CommandContext, value: float) -> str:
     message = ctx.submit(_set_learning_rate(value), f"set learning rate to {value:g}")
-    return _queued(ctx, message, f"learning rate {value:g}")
+    return _queued(message, f"learning rate {value:g}")
 
 
 def _delay(ctx: CommandContext, milliseconds: float) -> str:
+    _require_session(ctx)
     ctx.control.set_delay(milliseconds / 1000.0)
     ctx.session.delay = milliseconds / 1000.0
     if milliseconds == 0:
@@ -160,7 +176,7 @@ def _status(ctx: CommandContext) -> str:
 def _best_value(record) -> float | None:
     if record is None:
         return None
-    return record.val_loss if record.val_loss is not None else record.train_loss
+    return record.monitored_loss
 
 
 def _prefixed(metrics: dict[str, float]) -> dict[str, float]:
@@ -257,7 +273,7 @@ def _save(ctx: CommandContext, path: str) -> str:
         torch.save(target.model.state_dict(), destination)
         return f"saved model weights to {destination.resolve()}"
 
-    return _queued(ctx, ctx.submit(save, f"save weights to {destination}"), "saving")
+    return _queued(ctx.submit(save, f"save weights to {destination}"), "saving")
 
 
 def _screenshot(ctx: CommandContext, path: str | None) -> str:

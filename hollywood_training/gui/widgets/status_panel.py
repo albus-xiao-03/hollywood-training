@@ -73,7 +73,7 @@ class StatusPanel(HudPanel):
             ]
             rows += [tuple(metrics[k : k + 2]) for k in range(0, len(metrics), 2)]
         if best is not None:
-            value = best.val_loss if best.val_loss is not None else best.train_loss
+            value = best.monitored_loss
             rows.append(
                 (
                     ("BEST LOSS", f"{fmt.loss(value)} @ {best.epoch}"),

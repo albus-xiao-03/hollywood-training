@@ -24,6 +24,7 @@ from .events import (
     StateChanged,
     TrainingPaused,
     TrainingState,
+    best_epoch,
     is_synchronous,
 )
 from .pump import EventPump, WaitingPump
@@ -53,5 +54,6 @@ __all__ = [
     "TrainingState",
     "TrainingTarget",
     "WaitingPump",
+    "best_epoch",
     "is_synchronous",
 ]

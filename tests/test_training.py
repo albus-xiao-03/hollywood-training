@@ -341,3 +341,65 @@ def test_progress_is_throttled(make_process, recording_channel):
     TrainingManager(make_process(epochs=1), channel=channel, progress_interval=1e9).run()
     batches = [(e.phase.value, e.batch) for e in sink.of_type(BatchProgress)]
     assert batches == [("train", 1), ("train", 6), ("validation", 1), ("validation", 2)]
+
+
+# ------------------------------------------------------------- review fixes
+def test_best_epoch_ignores_non_finite_losses():
+    from hollywood_training.sync import EpochRecord, best_epoch
+    from hollywood_training.training import TrainingResult
+
+    records = (
+        EpochRecord(1, float("nan"), None),
+        EpochRecord(2, 0.7, 0.5),
+        EpochRecord(3, 0.6, 0.4),
+    )
+    result = TrainingResult(TrainingState.FINISHED, records, 1.0)
+    assert result.best_epoch().epoch == 3 and best_epoch(records).epoch == 3
+    assert best_epoch([EpochRecord(1, float("nan"), None)]) is None
+
+
+def test_step_that_ends_on_the_last_epoch_finishes_without_resume(make_process, recording_channel):
+    channel, sink = recording_channel
+    control = TrainingControl(2, start_paused=True)
+
+    def on_pause(envelope):
+        if isinstance(envelope.event, TrainingPaused):
+            threading.Timer(0.02, lambda: control.step(2)).start()
+        sink(envelope)
+
+    channel.connect(on_pause)
+    result = TrainingManager(make_process(epochs=2), channel=channel, control=control).run()
+    assert result.state is TrainingState.FINISHED and result.epochs_completed == 2
+    assert len(sink.of_type(TrainingPaused)) == 1  # only the initial pause
+
+
+def test_metrics_are_averaged_over_the_batches_that_report_them(make_process, recording_channel):
+    process = make_process(epochs=1, validation=False)
+    calls = []
+
+    @process.train_step
+    def train_step(batch):
+        calls.append(1)
+        output = {"loss": 1.0}
+        if len(calls) % 2:  # every other batch reports the metric
+            output["rare"] = 4.0
+        return output
+
+    channel, _ = recording_channel
+    result = TrainingManager(process, channel=channel).run()
+    assert result.history[0].train_metrics == {"rare": 4.0}
+
+
+def test_start_message_uses_singular_for_one_epoch(make_process, recording_channel):
+    channel, sink = recording_channel
+    TrainingManager(make_process(epochs=1), channel=channel).run()
+    assert any("for 1 epoch on" in m.text for m in sink.of_type(LogMessage))
+
+
+def test_options_are_validated_before_anything_starts(make_process):
+    with pytest.raises(ValueError, match="torch_threads"):
+        ht.run(make_process(), gui=False, torch_threads="bogus")
+    with pytest.raises(ValueError, match="log_every"):
+        ht.run(make_process(), log_every=0)
+    with pytest.raises(ValueError):
+        make_process(batch_size=True)

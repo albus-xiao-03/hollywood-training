@@ -179,3 +179,10 @@ def test_session_state_folds_events():
 def test_synchronous_event_classification():
     assert is_synchronous(_started())
     assert not is_synchronous(LogMessage("x"))
+
+
+def test_delay_must_be_finite():
+    control = TrainingControl(3)
+    for bad in (float("inf"), float("nan")):
+        with pytest.raises(ValueError):
+            control.set_delay(bad)

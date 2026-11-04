@@ -7,7 +7,7 @@ Every connection layer is reduced to a **connection matrix** shaped ``(out, in)`
 * ``Conv*``: the signed mean over the kernel window, block-diagonal for grouped
   convolutions (unconnected channel pairs are 0).
 * ``ConvTranspose*``: the same, transposed back to ``(out, in)``.
-* ``Embedding``: the transposed table, ``(embedding_dim, num_embeddings)``.
+* ``Embedding`` / ``EmbeddingBag``: the transposed table, ``(embedding_dim, num_embeddings)``.
 
 At most ``limit`` neurons per side are kept (evenly spaced indices, recorded in the
 snapshot) so that very wide layers stay drawable. Statistics (:class:`WeightStats`) are

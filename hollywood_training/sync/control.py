@@ -9,6 +9,7 @@ All methods are thread-safe.
 
 from __future__ import annotations
 
+import math
 import threading
 from collections import deque
 from collections.abc import Callable
@@ -89,8 +90,8 @@ class TrainingControl:
 
     def set_delay(self, seconds: float) -> None:
         """Extra pause after every epoch (0 = run as fast as synchronisation allows)."""
-        if float(seconds) < 0:
-            raise ValueError("delay cannot be negative")
+        if not math.isfinite(float(seconds)) or float(seconds) < 0:
+            raise ValueError("delay must be a finite, non-negative number of seconds")
         with self._condition:
             self._delay = float(seconds)
             self._changed()

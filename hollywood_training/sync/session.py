@@ -2,8 +2,12 @@
 
 A frontend applies every event it receives (on its own thread) and then reads
 ``SessionState`` to draw. Version counters tell views when cached drawings must be rebuilt.
-Commands read it too (``status``, ``history``, ...). Not thread-safe by design: only the
-frontend thread touches it.
+Commands read it too (``status``, ``history``, ...).
+
+Not locked: one thread applies events. The window-process frontend also keeps a mirror
+in the training process, written by the training thread and read (plus two plain
+attribute writes by the ``epochs`` / ``delay`` commands) by its command thread - safe
+under the interpreter lock, at worst a moment stale.
 """
 
 from __future__ import annotations
@@ -26,6 +30,7 @@ from .events import (
     StateChanged,
     TrainingPaused,
     TrainingState,
+    best_epoch,
 )
 
 
@@ -145,14 +150,8 @@ class SessionState:
         return self.history[-1] if self.history else None
 
     def best_record(self) -> EpochRecord | None:
-        """Epoch with the lowest validation loss (training loss when there is none)."""
-        if not self.history:
-            return None
-
-        def key(record: EpochRecord) -> float:
-            return record.val_loss if record.val_loss is not None else record.train_loss
-
-        return min(self.history, key=key)
+        """Epoch with the lowest finite validation loss (training loss when there is none)."""
+        return best_epoch(self.history)
 
     def epoch_progress(self) -> float:
         """Completed fraction of all requested epochs (0-1)."""

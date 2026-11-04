@@ -109,6 +109,7 @@ def test_columns_follow_the_layers_and_bridge_reshapes():
     assert [link.bridge for link in links] == [False, True, False]
     assert [column.size for column in columns] == [1, 4, 64, 3]
     assert columns[2].caption == "8 of 64 features"
+    assert columns[0].caption == "1 feature"
 
 
 def test_nice_ticks():

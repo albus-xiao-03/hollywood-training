@@ -31,7 +31,8 @@ from .training.process import TrainingProcess
 
 
 def cpu_cores() -> int:
-    """CPU cores this process may use (respects affinity masks / container limits)."""
+    """CPU cores this process may run on (its CPU affinity mask, e.g. taskset or cpusets;
+    CPU *quotas* such as ``docker --cpus`` are not visible here)."""
     try:
         return max(1, len(os.sched_getaffinity(0)))
     except (AttributeError, OSError):  # not available on macOS / Windows
@@ -66,6 +67,20 @@ def _torch_threads(setting: int | str | None) -> Iterator[int]:
         yield target
     finally:
         torch.set_num_threads(previous)
+
+
+def _check_options(torch_threads: object, log_every: object) -> None:
+    """Validate options up front, whichever frontend ends up using them."""
+    if torch_threads not in (None, "auto") and (
+        isinstance(torch_threads, bool) or not isinstance(torch_threads, int) or torch_threads < 1
+    ):
+        raise ValueError(
+            f"torch_threads must be 'auto', None or a positive int, got {torch_threads!r}"
+        )
+    if log_every is not None and (
+        isinstance(log_every, bool) or not isinstance(log_every, int) or log_every < 1
+    ):
+        raise ValueError(f"log_every must be a positive int, got {log_every!r}")
 
 
 class TrainingFailedError(RuntimeError):
@@ -122,6 +137,7 @@ def run(
     """
     if not isinstance(process, TrainingProcess):
         raise TypeError(f"run() expects a TrainingProcess, got {type(process).__name__}")
+    _check_options(torch_threads, log_every)
     process.resolve_steps()  # fail fast, before any window opens
     if start_paused and not gui:
         raise ValueError("start_paused needs the GUI: there is no terminal to resume from")

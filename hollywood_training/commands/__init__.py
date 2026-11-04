@@ -1,11 +1,12 @@
 """Runtime commands for controlling a managed training session.
 
-The declarations and the parser (:mod:`.registry`) need no torch; the built-in command
-set and the handler context are imported on first use.
+The declarations, the parser (:mod:`.registry`) and the handler context (:mod:`.context`)
+need no torch; the built-in command set (:mod:`.builtin`) is imported on first use.
 """
 
 from importlib import import_module
 
+from .context import CommandContext, FrontendActions
 from .registry import (
     Argument,
     Command,
@@ -18,8 +19,6 @@ from .registry import (
 _LAZY = {
     "builtin_commands": ".builtin",
     "create_registry": ".builtin",
-    "CommandContext": ".context",
-    "FrontendActions": ".context",
 }
 
 __all__ = [

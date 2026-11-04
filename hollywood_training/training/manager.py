@@ -195,20 +195,24 @@ class TrainingManager:
         self._seen_revision = self._control.revision
         if self._state is TrainingState.RUNNING:
             self._clock.start()
+        epochs = info.total_epochs
         self._log(
             LogLevel.INFO,
-            f"training {info.network_class} for {info.total_epochs} epochs on {info.device}",
+            f"training {info.network_class} for {epochs} epoch{'s' if epochs != 1 else ''} "
+            f"on {info.device}",
         )
 
     def _loop(self) -> bool:
         """Epoch loop. Returns True when every requested epoch completed."""
         while True:
-            if not self._checkpoint(None, 0, None):
-                return self._epoch >= self._control.total_epochs
+            # completion first: a `step` that ends on the last epoch must not pause
+            # "before" an epoch that will never run
             if self._epoch >= self._control.total_epochs:
                 if not (self._linger and self._await_more_epochs()):
                     return True
                 continue
+            if not self._checkpoint(None, 0, None):
+                return False
             record = self._run_epoch(self._epoch + 1)
             if record is None:
                 return False
@@ -217,6 +221,8 @@ class TrainingManager:
     def _await_more_epochs(self) -> bool:
         """Linger in FINISHED until more epochs are requested (True) or a stop (False)."""
         self._clock.pause()
+        if self._control.paused:  # a pause (e.g. from `step`) has nothing left to hold back
+            self._control.resume()
         self._set_state(
             TrainingState.FINISHED,
             f"all {self._control.total_epochs} epochs complete - 'epochs <n>' trains further",
@@ -298,6 +304,7 @@ class TrainingManager:
         loss_sum = 0.0
         batches = 0
         metric_sums: dict[str, float] = {}
+        metric_counts: dict[str, int] = {}
         warned = False
 
         with torch.enable_grad() if training else torch.no_grad():
@@ -319,6 +326,7 @@ class TrainingManager:
                 batches += 1
                 for name, value in result.metrics.items():
                     metric_sums[name] = metric_sums.get(name, 0.0) + value
+                    metric_counts[name] = metric_counts.get(name, 0) + 1
                 if self._batch_size is None:
                     self._batch_size = infer_batch_size(batch)
                 self._report_progress(epoch, phase, index, total, result.loss)
@@ -328,7 +336,8 @@ class TrainingManager:
         if batches == 0:
             source = "train_data" if training else "val_data"
             raise TrainingError(f"{source} produced no batches in epoch {epoch}")
-        means = {name: total_value / batches for name, total_value in metric_sums.items()}
+        # each metric is averaged over the batches that reported it
+        means = {name: metric_sums[name] / metric_counts[name] for name in metric_sums}
         return _PhaseResult(loss_sum / batches, means, batches)
 
     def _step_scheduler(self, record: EpochRecord) -> None:
@@ -336,7 +345,7 @@ class TrainingManager:
         if scheduler is None:
             return
         if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
-            scheduler.step(record.val_loss if record.val_loss is not None else record.train_loss)
+            scheduler.step(record.monitored_loss)
         else:
             scheduler.step()
 

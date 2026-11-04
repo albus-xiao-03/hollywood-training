@@ -14,7 +14,7 @@ from torch import nn
 
 from .architecture import NetworkArchitecture
 from .decorator import TrackOptions, track_options
-from .inspector import ForwardTrace, architecture_signature, build_architecture
+from .inspector import ForwardTrace, architecture_signature, build_architecture, unwrap
 from .snapshot import DEFAULT_NEURON_LIMIT, WeightSnapshot, capture
 
 
@@ -39,7 +39,9 @@ class NetworkTracker:
         if max_neurons < 2:
             raise ValueError("max_neurons must be at least 2")
         self._model = model
-        self._options = options if options is not None else track_options(model) or TrackOptions()
+        if options is None:  # declared on the model, or on the network inside a wrapper
+            options = track_options(model) or track_options(unwrap(model)) or TrackOptions()
+        self._options = options
         self._max_neurons = int(max_neurons)
         self._architecture = build_architecture(model, self._options)
         self._trace: ForwardTrace | None = None
@@ -77,12 +79,16 @@ class NetworkTracker:
             self._trace.start()
 
     def end_trace(self) -> bool:
-        """Stop recording; adopt the traced order. Returns True if the architecture changed."""
-        if self._trace is None:
+        """Stop recording; adopt the traced order. Returns True if the architecture changed.
+
+        Only a *complete* forward pass is adopted: if it raised (or never went through the
+        model's ``__call__``), the current architecture is kept.
+        """
+        trace, self._trace = self._trace, None
+        if trace is None:
             return False
-        calls = self._trace.stop()
-        self._trace = None
-        if not calls:
+        calls = trace.stop()
+        if not calls or not trace.complete:
             return False
         traced = build_architecture(self._model, self._options, order=calls)
         changed = architecture_signature(traced) != architecture_signature(self._architecture)

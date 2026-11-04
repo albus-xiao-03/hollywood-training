@@ -77,3 +77,7 @@ ignore = [
 
 [tool.ruff.lint.isort]
 known-first-party = ["hollywood_training"]
+
+[tool.ruff.format]
+# Code examples in README / wiki pages are laid out for reading; leave them as written.
+exclude = ["*.md"]

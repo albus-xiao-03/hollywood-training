@@ -81,10 +81,12 @@ class Link:
 
 
 def _amount(indices: np.ndarray, size: int | None, noun: str) -> str:
+    """Caption such as ``16 neurons``, ``20 of 128 features`` or ``1 feature``."""
     if size is None:
-        return f"? {noun}"
+        return f"? {noun}s"
     shown = len(indices)
-    return f"{shown} of {size} {noun}" if shown < size else f"{size} {noun}"
+    plural = noun if size == 1 else f"{noun}s"
+    return f"{shown} of {size} {plural}" if shown < size else f"{size} {plural}"
 
 
 def build_columns(
@@ -115,7 +117,7 @@ def build_columns(
                     size=layer.in_features,
                     title="INPUT" if first else f"{layer.name.upper()} IN",
                     subtitle="network input" if first else "reshaped input",
-                    caption=_amount(in_index, layer.in_features, "features"),
+                    caption=_amount(in_index, layer.in_features, "feature"),
                     badges=tuple(op.summary for op in architecture.input_operations)
                     if first
                     else (),
@@ -133,7 +135,7 @@ def build_columns(
                 size=layer.out_features,
                 title=layer.name.upper(),
                 subtitle=layer.summary,
-                caption=_amount(out_index, layer.out_features, "neurons"),
+                caption=_amount(out_index, layer.out_features, "neuron"),
                 badges=tuple(op.summary for op in layer.operations),
                 labels=architecture.output_labels if last else None,
                 bias=layer_weights.bias if layer_weights is not None else None,
@@ -336,11 +338,11 @@ class NetworkView(HudPanel):
             )
             self._signals.configure(self._links, int(min(160, 36 + connections // 5)))
         self._weights_version = session.weights_version
-        code = ""
+        code = "NET-01"
         if architecture is not None:
             parameters = fmt.count(architecture.total_parameters)
             code = f"{len(architecture.layers)} LAYERS · {parameters} PARAMS"
-        self._code = code
+        self._code = code.upper()  # set directly: the cache below is drawn right away
         self._static = self._render_static(dpr)
 
     def _place(self, rect: QRectF) -> None:

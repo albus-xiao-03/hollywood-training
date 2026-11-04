@@ -75,7 +75,8 @@ def count(value: int | None) -> str:
 
 
 def epoch_summary(record: EpochRecord, total_epochs: int) -> str:
-    """One line per epoch, e.g. ``epoch 12/200 | train 0.4123 | val 0.4555 | ...``."""
+    """One line per epoch, e.g. ``epoch  12/200 | train 0.4123 | val 0.4555 | ...``
+    (the epoch is right-aligned to the width of the total)."""
     width = len(str(total_epochs))
     parts = [f"epoch {record.epoch:>{width}}/{total_epochs}", f"train {loss(record.train_loss)}"]
     if record.val_loss is not None:

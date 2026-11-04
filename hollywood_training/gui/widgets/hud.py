@@ -78,6 +78,15 @@ class HudPanel(QWidget):
     def title(self) -> str:
         return self._title
 
+    @property
+    def code(self) -> str:
+        return self._code
+
+    def set_code(self, code: str) -> None:
+        """Change the small text at the right of the title strip."""
+        self._code = code.upper()
+        self.update()
+
     def content_rect(self) -> QRectF:
         return QRectF(self.contentsRect())
 
@@ -127,6 +136,7 @@ class HudPanel(QWidget):
         baseline = rect.top() + 18
         painter.drawText(QPointF(rect.left() + CUT + 6, baseline), f"▸ {self._title}")
         title_width = QFontMetrics(font).horizontalAdvance(f"▸ {self._title}")
+        code_width = 0
         if self._code:
             code_font = mono_font(7.5, spacing=1.5)
             painter.setFont(code_font)
@@ -134,7 +144,7 @@ class HudPanel(QWidget):
             code_width = QFontMetrics(code_font).horizontalAdvance(self._code)
             painter.drawText(QPointF(rect.right() - code_width - 18, baseline), self._code)
         line_start = rect.left() + CUT + 14 + title_width
-        line_end = rect.right() - 18 - (60 if self._code else 0)
+        line_end = rect.right() - 18 - (code_width + 12 if self._code else 0)
         if line_end > line_start:
             underline = QLinearGradient(QPointF(line_start, 0), QPointF(line_end, 0))
             underline.setColorAt(0.0, color(PALETTE.accent, 120))

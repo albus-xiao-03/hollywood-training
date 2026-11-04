@@ -1,4 +1,4 @@
-"""Animation timing: one shared clock drives every animated widget, plus easing helpers.
+"""Animation timing: one shared clock drives every animated widget, plus smoothing helpers.
 
 A single ``AnimationClock`` (a precise ~60 fps ``QTimer``) keeps all panels in step and
 costs one timer instead of one per widget. Animations are purely visual: they never
@@ -57,8 +57,3 @@ def approach(current: float, target: float, dt: float, half_life: float) -> floa
 def pulse(time: float, period: float, phase: float = 0.0) -> float:
     """Smooth 0→1→0 oscillation with the given period (seconds)."""
     return 0.5 + 0.5 * math.sin(2.0 * math.pi * (time / period + phase))
-
-
-def ease_out_cubic(t: float) -> float:
-    t = max(0.0, min(1.0, t))
-    return 1.0 - (1.0 - t) ** 3

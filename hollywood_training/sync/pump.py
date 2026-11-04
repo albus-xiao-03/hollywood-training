@@ -1,17 +1,17 @@
 """Event pumps: how the training loop gives its frontend time to run.
 
-Training and the GUI share one thread (the caller's - which Qt requires to be the main
-thread). The manager therefore *pumps* the frontend:
+A frontend that runs on the training thread itself - the in-process window, where
+training and the GUI share the caller's main thread - needs the training loop to give it
+time. The manager therefore *pumps* its frontend:
 
 * :meth:`EventPump.poll` at every safe point between batches - cheap, non-blocking;
 * :meth:`EventPump.wait` whenever it has nothing to do for a moment (paused, finished
   but lingering, the optional per-epoch delay) - blocks up to ``timeout`` seconds while
   the frontend keeps processing input and animating.
 
-Sharing the thread keeps PyTorch on the thread that created the data and the model, so
-its intra-op thread pool runs at full speed, and the GUI never competes with training for
-the interpreter lock. The default :class:`WaitingPump` (console / headless runs) simply
-sleeps until a control request arrives.
+Frontends with no event loop of their own on the training thread - the console, and the
+default window process (whose window lives in another process) - use the default
+:class:`WaitingPump`, which simply sleeps until a control request arrives.
 """
 
 from __future__ import annotations

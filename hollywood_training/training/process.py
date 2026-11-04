@@ -117,7 +117,9 @@ class TrainingProcess:
             _check_reiterable(val_data, "val_data")
         if isinstance(epochs, bool) or not isinstance(epochs, int) or epochs < 1:
             raise ValueError(f"epochs must be a positive integer, got {epochs!r}")
-        if batch_size is not None and (not isinstance(batch_size, int) or batch_size < 1):
+        if batch_size is not None and (
+            isinstance(batch_size, bool) or not isinstance(batch_size, int) or batch_size < 1
+        ):
             raise ValueError(f"batch_size must be a positive integer, got {batch_size!r}")
         if loss_fn is not None:
             _check_callable(loss_fn, "loss_fn")

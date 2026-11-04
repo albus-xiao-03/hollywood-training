@@ -3,8 +3,9 @@
 A :class:`Command` declares its name, aliases, typed :class:`Argument` s and a handler
 ``handler(context, *arguments) -> str | None``. :class:`CommandRegistry` parses a command
 line (shell-like quoting), converts and validates the arguments, calls the handler and
-wraps the outcome in a :class:`CommandResult`. Handlers never raise into the frontend:
-errors become failed results with a helpful message.
+wraps the outcome in a :class:`CommandResult`. Ordinary errors never reach the frontend:
+they become failed results with a helpful message (``KeyboardInterrupt`` / ``SystemExit``
+still propagate).
 """
 
 from __future__ import annotations
@@ -179,7 +180,7 @@ class CommandRegistry:
         return command, command.bind(tokens[1:])
 
     def execute(self, line: str, context: Any) -> CommandResult:
-        """Parse and run ``line``; never raises."""
+        """Parse and run ``line``; ordinary errors become a failed result."""
         command: Command | None = None
         try:
             command, arguments = self.parse(line)

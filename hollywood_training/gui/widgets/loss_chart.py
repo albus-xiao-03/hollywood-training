@@ -253,7 +253,7 @@ class LossChart(HudPanel):
         # best epoch marker
         best = self._session.best_record()
         if best is not None:
-            value = best.val_loss if best.val_loss is not None else best.train_loss
+            value = best.monitored_loss
             if axes.visible(value):
                 center = QPointF(axes.x(best.epoch), axes.y(value))
                 diamond = QPolygonF(
@@ -300,7 +300,7 @@ class LossChart(HudPanel):
         if np.isfinite(val).any():
             entries.append((PALETTE.indigo, True, f"VAL {fmt.loss(float(val[-1]))}"))
         if best is not None:
-            value = best.val_loss if best.val_loss is not None else best.train_loss
+            value = best.monitored_loss
             entries.append((PALETTE.success, None, f"BEST {fmt.loss(value)} @ {best.epoch}"))
         for ink, dashed, text in entries:
             if dashed is None:
@@ -327,7 +327,8 @@ class LossChart(HudPanel):
             painter.setPen(color(PALETTE.ice))
             painter.drawText(QPointF(x + 19, y + 4), text)
             x += 19 + metrics.horizontalAdvance(text) + 18
-        scale = "LOG" if self._log else "LIN"
+        # the axes fall back to linear when no loss is positive: report what is drawn
+        scale = "LOG" if self._axes is not None and self._axes.log else "LIN"
         painter.setPen(color(PALETTE.text_dim))
         painter.drawText(QPointF(rect.right() - metrics.horizontalAdvance(scale) - 4, y + 4), scale)
 

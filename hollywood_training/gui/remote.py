@@ -19,11 +19,13 @@ training device is known.
 from __future__ import annotations
 
 import os
+import queue
 import secrets
 import subprocess
 import sys
 import threading
 import time
+import warnings
 from multiprocessing.connection import Listener
 from pathlib import Path
 
@@ -72,6 +74,10 @@ class RemoteFrontend:
         self._window_closed = threading.Event()
         self._stop_sampling = threading.Event()
         self._sampler: threading.Thread | None = None
+        self._commands: queue.SimpleQueue[str | None] = queue.SimpleQueue()
+        self._closed_cleanly = False  # the window reported ("closed",)
+        self._shutting_down = False  # we are closing the link ourselves
+        self._warned = False
         channel.connect(self._forward)
 
     # ------------------------------------------------------------------ running
@@ -92,6 +98,10 @@ class RemoteFrontend:
             target=self._receive, name="hollywood-training-link", daemon=True
         )
         receiver.start()
+        # commands get their own thread, so a slow handler never delays an acknowledgement
+        threading.Thread(
+            target=self._serve_commands, name="hollywood-training-commands", daemon=True
+        ).start()
         interrupted = False
         try:
             try:
@@ -152,6 +162,7 @@ class RemoteFrontend:
                         f"the GUI process did not connect within {STARTUP_TIMEOUT:.0f} s"
                     )
             if "connection" not in accepted:
+                self._process.terminate()
                 raise RuntimeError(f"could not connect to the GUI process: {accepted.get('error')}")
         finally:
             listener.close()
@@ -181,6 +192,7 @@ class RemoteFrontend:
         if isinstance(envelope.event, SessionStarted):
             self._start_sampling(envelope.event.info.device)
         if self._link is None or not self._link.send("event", envelope):
+            self._report_lost_window()
             self._lost_window()
 
     def _start_sampling(self, device: str) -> None:
@@ -210,10 +222,28 @@ class RemoteFrontend:
             if kind == "ack":
                 self._channel.acknowledge(message[1])
             elif kind == "command":
-                self._execute(message[1])
+                self._commands.put(message[1])
             elif kind == "closed":
+                self._closed_cleanly = True
                 break
+        if not self._closed_cleanly:
+            self._report_lost_window()
         self._lost_window()
+
+    def _report_lost_window(self) -> None:
+        """Warn once when the window vanished on its own (not when we close the link)."""
+        if self._warned or self._shutting_down or self._closed_cleanly:
+            return
+        self._warned = True
+        warnings.warn(
+            "the GUI window process ended unexpectedly; training was stopped",
+            RuntimeWarning,
+            stacklevel=1,
+        )
+
+    def _serve_commands(self) -> None:
+        while (line := self._commands.get()) is not None:
+            self._execute(line)
 
     def _execute(self, line: str) -> None:
         assert self._context is not None and self._link is not None
@@ -238,7 +268,9 @@ class RemoteFrontend:
             pass
 
     def _shutdown(self, receiver: threading.Thread) -> None:
+        self._shutting_down = True
         self._stop_sampling.set()
+        self._commands.put(None)  # ends the command thread
         if self._link is not None:
             self._link.close()
         receiver.join(2.0)
