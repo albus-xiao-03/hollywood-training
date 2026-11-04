@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 import math
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .sync.events import EpochRecord
 
 PLACEHOLDER = "—"
 
@@ -68,3 +72,15 @@ def data_size(num_bytes: float | None) -> str:
 
 def count(value: int | None) -> str:
     return PLACEHOLDER if value is None else f"{value:,}"
+
+
+def epoch_summary(record: EpochRecord, total_epochs: int) -> str:
+    """One line per epoch, e.g. ``epoch 12/200 | train 0.4123 | val 0.4555 | ...``."""
+    width = len(str(total_epochs))
+    parts = [f"epoch {record.epoch:>{width}}/{total_epochs}", f"train {loss(record.train_loss)}"]
+    if record.val_loss is not None:
+        parts.append(f"val {loss(record.val_loss)}")
+    parts += [f"{name} {metric(name, value)}" for name, value in record.train_metrics.items()]
+    parts += [f"val {name} {metric(name, value)}" for name, value in record.val_metrics.items()]
+    parts += [f"lr {learning_rate(record.learning_rate)}", f"{record.duration:.3f}s"]
+    return " | ".join(parts)

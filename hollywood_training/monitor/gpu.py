@@ -9,21 +9,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Protocol
 
 import torch
 
-
-@dataclass(frozen=True, slots=True)
-class GpuUsage:
-    """One GPU reading."""
-
-    backend: str  # "cuda" or "mps"
-    name: str
-    utilization: float | None  # percent, when the driver exposes it
-    memory_used: int | None  # bytes
-    memory_total: int | None  # bytes
+from .usage import GpuUsage
 
 
 class GpuProbe(Protocol):

@@ -264,7 +264,7 @@ def _screenshot(ctx: CommandContext, path: str | None) -> str:
     frontend = ctx.require_frontend("screenshot")
     name = path or time.strftime("hollywood-training-%Y%m%d-%H%M%S.png")
     saved = frontend.screenshot(Path(name).expanduser())
-    return f"screenshot saved to {saved}"
+    return f"screenshot saved to {saved}" if saved is not None else f"screenshot requested: {name}"
 
 
 def _clear(ctx: CommandContext) -> str:

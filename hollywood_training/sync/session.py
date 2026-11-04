@@ -12,7 +12,7 @@ import math
 import time
 
 from ..tracking.architecture import ArchitectureInfo
-from ..tracking.snapshot import WeightSnapshot
+from ..tracking.weights import WeightSnapshot
 from .events import (
     BatchProgress,
     EpochCompleted,

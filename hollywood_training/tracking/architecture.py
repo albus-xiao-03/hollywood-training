@@ -13,10 +13,12 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
-from torch import nn
+from .roles import LayerRole
 
-from .layers import LayerRole
+if TYPE_CHECKING:  # the module-free *Info classes must not need torch at runtime
+    from torch import nn
 
 
 @dataclass(frozen=True, slots=True)

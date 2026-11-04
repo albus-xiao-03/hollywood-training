@@ -16,12 +16,24 @@ Three steps, all in ordinary PyTorch style::
     ht.run(process)                             # 3. hand it to the manager
 """
 
+from importlib import import_module
+
 from ._version import __version__
-from .commands import Argument, Command, CommandContext, CommandError
-from .runner import TrainingFailedError, run
-from .sync import EpochRecord, TrainingState
-from .tracking import NetworkTracker, inspect_network, is_tracked, track
-from .training import ProcessError, TrainingProcess, TrainingResult
+from .commands.registry import Argument, Command, CommandError
+from .sync.events import EpochRecord, TrainingState
+
+_LAZY = {
+    "CommandContext": ".commands.context",
+    "NetworkTracker": ".tracking.tracker",
+    "ProcessError": ".training.process",
+    "TrainingFailedError": ".runner",
+    "TrainingProcess": ".training.process",
+    "TrainingResult": ".training.history",
+    "inspect_network": ".tracking.tracker",
+    "is_tracked": ".tracking.decorator",
+    "run": ".runner",
+    "track": ".tracking.decorator",
+}
 
 __all__ = [
     "Argument",
@@ -41,3 +53,18 @@ __all__ = [
     "run",
     "track",
 ]
+
+
+def __getattr__(name: str):
+    # Exports that need torch are imported on first use (PEP 562), so the torch-free
+    # data modules of this package can be used on their own - e.g. by the GUI process.
+    module = _LAZY.get(name)
+    if module is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    value = getattr(import_module(module, __name__), name)
+    globals()[name] = value
+    return value
+
+
+def __dir__() -> list[str]:
+    return sorted(__all__)

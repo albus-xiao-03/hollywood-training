@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ..sync.events import EpochRecord, TrainingState
-from ..tracking.snapshot import WeightSnapshot
+from ..tracking.weights import WeightSnapshot
 
 
 @dataclass(frozen=True, slots=True, eq=False)

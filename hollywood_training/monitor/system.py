@@ -9,30 +9,12 @@ from __future__ import annotations
 
 import os
 import time
-from dataclasses import dataclass
 
 import psutil
 import torch
 
-from .gpu import GpuProbe, GpuUsage, create_gpu_probe
-
-
-@dataclass(frozen=True, slots=True)
-class UsageSample:
-    """One reading of the machine and of this process."""
-
-    timestamp: float
-    cpu_percent: float  # whole machine, 0-100
-    process_cpu_percent: float  # this process, 100 = one full core
-    cpu_count: int
-    memory_used: int  # bytes, whole machine
-    memory_total: int
-    process_memory: int  # resident set size of this process, bytes
-    gpu: GpuUsage | None = None
-
-    @property
-    def memory_fraction(self) -> float:
-        return self.memory_used / self.memory_total if self.memory_total else 0.0
+from .gpu import GpuProbe, create_gpu_probe
+from .usage import UsageSample
 
 
 class SystemMonitor:

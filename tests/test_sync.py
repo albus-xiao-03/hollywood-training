@@ -122,14 +122,6 @@ def test_actions_queue_and_close():
     assert control.closed and not control.submit(lambda target: None, "too late")
 
 
-def test_sleep_returns_early_on_stop():
-    control = TrainingControl(3)
-    threading.Timer(0.05, control.stop).start()
-    started = time.monotonic()
-    control.sleep(5)
-    assert time.monotonic() - started < 1
-
-
 # ---------------------------------------------------------------- session state
 def _started(epochs: int = 4) -> SessionStarted:
     model = SmallNet()

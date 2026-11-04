@@ -10,8 +10,9 @@ For every epoch:
    :class:`SyncChannel` - blocking until the frontend has applied *and drawn* it -
    then continue immediately (no artificial delay unless the user asks for one).
 
-Between batches the manager applies runtime requests from :class:`TrainingControl`
-(pause, stop, queued actions such as learning-rate changes). It never touches a GUI.
+Between batches the manager pumps the frontend (:class:`~hollywood_training.sync.pump.
+EventPump`) and applies runtime requests from :class:`TrainingControl` (pause, stop,
+queued actions such as learning-rate changes). It never touches a GUI itself.
 """
 
 from __future__ import annotations
@@ -38,8 +39,9 @@ from ..sync.events import (
     TrainingPaused,
     TrainingState,
 )
-from ..tracking.snapshot import WeightSnapshot
+from ..sync.pump import EventPump, WaitingPump
 from ..tracking.tracker import NetworkTracker
+from ..tracking.weights import WeightSnapshot
 from .describe import (
     build_session_info,
     count_batches,
@@ -74,6 +76,8 @@ class TrainingManager:
         linger: after the last epoch, wait (state ``FINISHED``) so more epochs can be
             requested with ``epochs <n>``, until stopped. Used by interactive frontends.
         progress_interval: minimum seconds between :class:`BatchProgress` events.
+        pump: gives the frontend time between batches and while waiting; defaults to
+            :class:`~hollywood_training.sync.pump.WaitingPump`.
     """
 
     def __init__(
@@ -85,11 +89,13 @@ class TrainingManager:
         tracker: NetworkTracker | None = None,
         linger: bool = False,
         progress_interval: float = 1 / 30,
+        pump: EventPump | None = None,
     ) -> None:
         self._process = process
         self._channel = channel
         self._control = control if control is not None else TrainingControl(process.epochs)
         self._tracker = tracker if tracker is not None else NetworkTracker(process.model)
+        self._pump: EventPump = pump if pump is not None else WaitingPump(self._control)
         self._linger = linger
         self._progress_interval = progress_interval
         self._target = TrainingTarget(process.model, process.optimizer)
@@ -223,7 +229,7 @@ class TrainingManager:
                     TrainingState.RUNNING, f"continuing to epoch {self._control.total_epochs}"
                 )
                 return True
-            self._control.wait(0.1)
+            self._pump.wait(0.1)
         return False
 
     # ----------------------------------------------------------------- epochs
@@ -278,7 +284,7 @@ class TrainingManager:
             return
         self._control.epoch_completed(record.epoch)
         if self._control.delay > 0:
-            self._control.sleep(self._control.delay, on_wake=self._apply_requests)
+            self._sleep(self._control.delay)
 
     def _run_phase(self, phase: Phase, epoch: int) -> _PhaseResult | None:
         assert self._steps is not None
@@ -337,6 +343,7 @@ class TrainingManager:
     # --------------------------------------------------------------- control
     def _checkpoint(self, phase: Phase | None, batch: int, epoch: int | None) -> bool:
         """Safe point between batches/epochs. Returns False when the session must stop."""
+        self._pump.poll()
         self._apply_requests()
         if self._control.stop_requested:
             return False
@@ -358,11 +365,21 @@ class TrainingManager:
             where = f"epoch {in_progress}, {phase.value} batch {batch}"
         self._set_state(TrainingState.PAUSED, f"paused ({where}) - 'resume' or 'step' continues")
         while self._control.paused and not self._control.stop_requested:
-            self._control.wait(0.1)
+            self._pump.wait(0.1)
             self._apply_requests()
         if not self._control.stop_requested:
             self._clock.start()
             self._set_state(TrainingState.RUNNING, "resumed")
+
+    def _sleep(self, seconds: float) -> None:
+        """The optional per-epoch delay; ends early on stop or pause."""
+        deadline = time.monotonic() + seconds
+        while not (self._control.stop_requested or self._control.paused):
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return
+            self._pump.wait(min(remaining, 0.1))
+            self._apply_requests()
 
     def _apply_requests(self) -> None:
         """Run queued actions and publish any setting changes."""

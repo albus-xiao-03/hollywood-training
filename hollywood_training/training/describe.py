@@ -51,6 +51,9 @@ def describe_device(device: torch.device) -> str:
     if device.type == "cuda" and torch.cuda.is_available():
         index = device.index if device.index is not None else torch.cuda.current_device()
         return f"cuda:{index} ({torch.cuda.get_device_name(index)})"
+    if device.type == "cpu":
+        threads = torch.get_num_threads()
+        return f"cpu ({threads} thread{'s' if threads != 1 else ''})"
     return str(device)
 
 

@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from ..tracking.architecture import ArchitectureInfo
-from ..tracking.snapshot import WeightSnapshot
+from ..tracking.weights import WeightSnapshot
 
 
 class TrainingState(str, Enum):

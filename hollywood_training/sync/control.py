@@ -10,7 +10,6 @@ All methods are thread-safe.
 from __future__ import annotations
 
 import threading
-import time
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -161,18 +160,6 @@ class TrainingControl:
         """Sleep until any request arrives or ``timeout`` seconds pass."""
         with self._condition:
             self._condition.wait(timeout)
-
-    def sleep(self, seconds: float, *, on_wake: Callable[[], None] | None = None) -> None:
-        """Sleep up to ``seconds``; returns early on stop or pause. ``on_wake`` runs on
-        every wake-up (e.g. to apply queued actions)."""
-        deadline = time.monotonic() + seconds
-        while not self._stop and not self._paused:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                return
-            self.wait(min(remaining, 0.1))
-            if on_wake is not None:
-                on_wake()
 
     def close(self) -> list[tuple[ControlAction, str]]:
         """Called when the training thread exits; returns actions that never ran."""

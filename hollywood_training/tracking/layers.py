@@ -7,21 +7,9 @@ skipped otherwise.
 
 from __future__ import annotations
 
-from enum import Enum
-
 from torch import nn
 
-
-class LayerRole(str, Enum):
-    """What a leaf module contributes to the drawn network."""
-
-    CONNECTION = "connection"  # owns a weight matrix linking input features to output features
-    ACTIVATION = "activation"
-    NORMALIZATION = "normalization"
-    REGULARIZATION = "regularization"
-    POOLING = "pooling"
-    RESHAPE = "reshape"
-    OTHER = "other"
+from .roles import LayerRole
 
 
 def _public_classes(*names: str) -> tuple[type[nn.Module], ...]:

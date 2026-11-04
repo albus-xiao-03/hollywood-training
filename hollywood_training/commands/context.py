@@ -24,7 +24,8 @@ class FrontendActions(Protocol):
 
     def close(self) -> None: ...
 
-    def screenshot(self, path: Path) -> Path: ...
+    def screenshot(self, path: Path) -> Path | None:
+        """Save a PNG; returns its path, or None when it is written asynchronously."""
 
 
 class CommandContext:

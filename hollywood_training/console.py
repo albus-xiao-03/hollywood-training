@@ -68,7 +68,7 @@ class ConsoleFrontend:
             self._header(event)
         elif isinstance(event, EpochCompleted):
             if self._should_print(event):
-                self._write(self._epoch_line(event))
+                self._write(fmt.epoch_summary(event.record, event.total_epochs))
         elif isinstance(event, StateChanged):
             if event.message:
                 self._write(f"[{event.state.value}] {event.message}")
@@ -97,24 +97,6 @@ class ConsoleFrontend:
         epoch, total = event.record.epoch, event.total_epochs
         every = self._log_every or max(1, total // 25)
         return epoch == 1 or epoch % every == 0 or epoch == total
-
-    def _epoch_line(self, event: EpochCompleted) -> str:
-        record = event.record
-        width = len(str(event.total_epochs))
-        parts = [
-            f"epoch {record.epoch:>{width}}/{event.total_epochs}",
-            f"train {fmt.loss(record.train_loss)}",
-        ]
-        if record.val_loss is not None:
-            parts.append(f"val {fmt.loss(record.val_loss)}")
-        parts += [
-            f"{name} {fmt.metric(name, value)}" for name, value in record.train_metrics.items()
-        ]
-        parts += [
-            f"val {name} {fmt.metric(name, value)}" for name, value in record.val_metrics.items()
-        ]
-        parts += [f"lr {fmt.learning_rate(record.learning_rate)}", f"{record.duration:.3f}s"]
-        return " | ".join(parts)
 
     def _footer(self, event: SessionFinished) -> None:
         self._write("-" * 72)

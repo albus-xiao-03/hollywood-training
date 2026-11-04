@@ -3,6 +3,7 @@
 * :mod:`.events`  - what crosses from training to the frontend
 * :mod:`.channel` - how it crosses (blocking hand-off for synchronous events)
 * :mod:`.control` - requests crossing back from the frontend to training
+* :mod:`.pump`    - how the training loop gives the frontend time to run
 * :mod:`.session` - the frontend-side state assembled from the events
 """
 
@@ -25,6 +26,7 @@ from .events import (
     TrainingState,
     is_synchronous,
 )
+from .pump import EventPump, WaitingPump
 from .session import SessionState
 
 __all__ = [
@@ -35,6 +37,7 @@ __all__ = [
     "EpochCompleted",
     "EpochRecord",
     "Event",
+    "EventPump",
     "LogLevel",
     "LogMessage",
     "Phase",
@@ -49,5 +52,6 @@ __all__ = [
     "TrainingPaused",
     "TrainingState",
     "TrainingTarget",
+    "WaitingPump",
     "is_synchronous",
 ]
