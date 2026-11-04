@@ -1,0 +1,79 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hollywood-training"
+dynamic = ["version"]
+description = "Watch PyTorch networks train in a Hollywood-style native GUI."
+readme = "README.md"
+requires-python = ">=3.10"
+keywords = ["pytorch", "deep-learning", "training", "visualization", "gui", "qt"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Visualization",
+    "Typing :: Typed",
+]
+dependencies = [
+    "torch>=2.0",
+    "numpy>=1.23",
+    "PySide6-Essentials>=6.5",
+    "psutil>=5.9",
+]
+
+[project.optional-dependencies]
+# GPU utilisation percentage on NVIDIA hardware (memory usage works without it).
+gpu = ["nvidia-ml-py>=11.450"]
+dev = [
+    "pytest>=7.4",
+    "pytest-qt>=4.2",
+    "pytest-timeout>=2.1",
+    "ruff>=0.4",
+]
+
+[project.urls]
+Homepage = "https://github.com/albus-xiao-03/hollywood-training"
+Documentation = "https://github.com/albus-xiao-03/hollywood-training/wiki"
+Issues = "https://github.com/albus-xiao-03/hollywood-training/issues"
+
+[tool.setuptools.dynamic]
+version = { attr = "hollywood_training._version.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["hollywood_training*"]
+
+[tool.setuptools.package-data]
+hollywood_training = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+timeout = 120
+qt_api = "pyside6"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "N", "RUF"]
+ignore = [
+    "N802",   # Qt overrides such as paintEvent/resizeEvent use camelCase
+    "RUF001", # box-drawing / arrow glyphs are intentional in GUI strings
+    "RUF002",
+    "RUF003",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["hollywood_training"]
