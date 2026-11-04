@@ -18,3 +18,6 @@ The `GitHub` has been fully configured in this project, and ready to work with `
 **ALL** the temporary files, including the environment test, helper functions, and other necessary temporary, **MUST** be stored in the folder `.temp` **INSIDE** the project folder, **NOT** the global environment.
 
 ---
+
+## Virtual Environment
+`Claude` **MUST** use virtual `Python` environment in the project folder under `.venv`, **ALL** `Python` package changes **MUST** remain inside the virtual environment.
