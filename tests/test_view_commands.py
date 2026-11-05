@@ -5,8 +5,10 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
+import torch
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
+from torch import nn
 
 import hollywood_training as ht
 from hollywood_training.commands import CommandContext, ViewRequest, create_registry
@@ -240,3 +242,112 @@ def test_probe_line_in_a_real_run_is_removed_on_resume(make_process, qapp):
     assert seen["paused"] == (TrainingState.PAUSED, 1)
     assert seen["resumed"] is None
     assert "epoch 1 of 8" in seen["report"] and RUNNING_HINT not in seen["report"]
+
+
+# ----------------------------------------------------------------------- neuron
+def column(gui, title: str):
+    return next(c for c in gui.window.network.columns() if c.title == title)
+
+
+def test_neuron_lists_the_drawn_columns_and_their_neurons(gui):
+    listing = run(gui, "neuron").output.splitlines()
+    assert listing[0] == "drawn columns ('neuron <column> <index>' highlights a neuron):"
+    assert [line.split()[0] for line in listing[1:]] == ["INPUT", "FC1", "FC2"]
+    assert "6 neurons" in listing[2] and listing[2].endswith("neurons 0-5")
+    assert run(gui, "neuron fc1").output == "FC1 · drawn neurons 0-5"
+
+
+def test_neuron_highlights_a_neuron_and_reports_it(gui):
+    network = gui.window.network
+    gui.window.clock.stop()  # still frames: compare two grabs
+    fc1 = column(gui, "FC1")
+    x, y, reach = round(fc1.x), round(float(fc1.ys[3])), round(network._radius) + 12
+
+    def around() -> list[int]:
+        image = network.grab().toImage()
+        return [
+            image.pixelColor(i, j).rgb()
+            for i in range(x - reach, x + reach)
+            for j in range(y - reach, y + reach)
+        ]
+
+    before = around()
+    report = run(gui, "neuron fc1 3")
+    expected = ["FC1 · neuron 3", f"bias {float(fc1.bias[3]):+.5f}"]
+    assert report.ok and report.output.splitlines() == expected
+    assert network.selected_neuron == ("FC1", 3)
+    assert sum(a != b for a, b in zip(before, around(), strict=True)) > 50  # the rings
+    assert network.last_selection_readout == expected
+
+
+def test_neuron_columns_are_matched_loosely(gui):
+    assert run(gui, "neuron FC2 1").output.startswith("FC2 · neuron 1")
+    assert run(gui, "neuron input 0").output == "INPUT · neuron 0"  # inputs have no bias
+    assert gui.window.network.selected_neuron == ("INPUT", 0)
+
+
+def test_neuron_refusals(gui):
+    for line, message in [
+        ("neuron fc1 9", "FC1 has no drawn neuron 9 - drawn: 0-5"),
+        ("neuron xyz 0", "no column 'xyz' - columns: INPUT, FC1, FC2"),
+        ("neuron fc1 -1", "invalid index '-1': must be 0 or more"),
+    ]:
+        result = run(gui, line)
+        assert not result.ok and result.output == message, line
+    assert gui.window.network.selected_neuron is None
+
+
+def test_neuron_off_removes_the_highlight(gui):
+    network = gui.window.network
+    run(gui, "neuron fc2 0")
+    assert run(gui, "neuron off").output == "neuron highlight removed"
+    network.repaint()
+    assert network.selected_neuron is None and network.last_selection_readout is None
+    assert run(gui, "neuron off").output == "no neuron highlighted"
+
+
+def test_neuron_highlight_stays_when_the_weights_change(gui):
+    run(gui, "neuron fc1 2")
+    record = EpochRecord(4, 0.1, 0.3)
+    deliver(gui.window, EpochCompleted(record, gui.tracker.snapshot(4), 6, 0.1, 16, 4.0))
+    assert gui.window.network.selected_neuron == ("FC1", 2)
+    assert gui.window.network.last_selection_readout[0] == "FC1 · neuron 2"
+
+
+def test_neuron_on_sampled_columns_with_numeric_titles(qtbot, make_process):
+    model = nn.Sequential(nn.Linear(2, 40), nn.Tanh(), nn.Linear(40, 2))
+    process = make_process(model=model, optimizer=torch.optim.SGD(model.parameters(), lr=0.1))
+    tracker = NetworkTracker(model, max_neurons=8)
+    session = SessionState()
+    architecture = tracker.architecture.describe()
+    info = build_session_info(process, architecture, total_epochs=1, neuron_limit=8)
+    window = MainWindow(session)
+    qtbot.addWidget(window)
+    window.show()
+    deliver(window, SessionStarted(info, tracker.snapshot(0), TrainingState.RUNNING))
+    columns = window.network.columns()
+    assert [c.title for c in columns] == ["INPUT", "0", "2"]  # Sequential layer names
+    drawn = [int(i) for i in columns[1].indices]
+    assert len(drawn) == 8 and drawn[0] == 0 and drawn[-1] == 39
+    ok, listing = window.handle_view(ViewRequest("neuron", (None, None)))
+    assert ok and "8 of 40 neurons" in listing and "0 … 39 (8 drawn)" in listing
+    ok, text = window.handle_view(ViewRequest("neuron", ("0", None)))
+    assert ok and text == "0 · drawn neurons " + ", ".join(str(i) for i in drawn)
+    ok, text = window.handle_view(ViewRequest("neuron", ("0", drawn[1])))
+    assert ok and text.startswith(f"0 · neuron {drawn[1]}")
+    hidden = next(i for i in range(40) if i not in drawn)
+    ok, text = window.handle_view(ViewRequest("neuron", ("0", hidden)))
+    assert not ok and text.startswith(f"0 has no drawn neuron {hidden} - drawn: 0, ")
+
+
+def test_neuron_needs_a_network(qtbot):
+    window = MainWindow(SessionState())
+    qtbot.addWidget(window)
+    assert window.handle_view(ViewRequest("neuron", (None, None))) == (
+        False,
+        "no network drawn yet",
+    )
+    assert window.handle_view(ViewRequest("neuron", ("off", None))) == (
+        True,
+        "no neuron highlighted",
+    )

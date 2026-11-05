@@ -7,7 +7,8 @@ between them drawn from each layer's real connection matrix, the neurons' biases
 operations of each layer. The drawing is rebuilt from the new weight snapshot at every
 epoch hand-off, so the lines follow the real training updates. An animation overlay,
 with glowing neurons and signal particles that prefer strong weights, runs on top of a
-cached pixmap.
+cached pixmap. The `neuron` command highlights one drawn neuron with a pulsing ring and a
+box showing its index, label and bias.
 
 ## Responsibilities
 
@@ -17,6 +18,7 @@ cached pixmap.
   pixmap. Rebuild it only when the architecture, the weights, the size or the device
   pixel ratio change.
 * Animate halos and signals every frame, and show a tooltip for each neuron.
+* Highlight a selected neuron (`select_neuron`) and describe it (`neuron_lines`).
 * Record which epoch's weights were painted last (`last_painted_epoch`).
 
 ## API
@@ -116,10 +118,33 @@ class NetworkView(HudPanel):
     ) -> None
 ```
 
+```python
+    @property
+    def selected_neuron(self) -> tuple[str, int] | None
+    def select_neuron(self, title: str | None, index: int | None = None) -> None
+    def columns(self) -> list[Column]
+
+    @staticmethod
+    def neuron_lines(column: Column, k: int) -> list[str]
+```
+
 The view draws `session.architecture` with `session.weights`. Its title is "Neural
 architecture", its minimum size is 460 × 320, and mouse tracking is on. The attribute
 `last_painted_epoch: int | None` holds `session.weights.epoch` after each paint, or
 `None` without weights.
+
+* `select_neuron(title, index)` highlights neuron `index` (a neuron index as drawn, see
+  `Column.indices`) of the column titled `title`, and schedules a repaint;
+  `select_neuron(None)` removes the highlight. `selected_neuron` is the selection as
+  `(column title, neuron index)`, or `None`. The `neuron` command
+  ([View Actions](GUI-View-Actions)) uses them.
+* `columns()` returns the columns as drawn now (it brings the cache up to date first).
+* `neuron_lines(column, k)` describes the `k`-th drawn neuron of `column`:
+  `<COLUMN> · neuron <index>`, then its label (when the column has labels), then
+  `bias <+0.00000>` (when the column has biases). The highlight box, the hover tooltip and
+  the `neuron` command show these lines.
+* `last_selection_readout: list[str] | None` holds the lines of the highlight box at the
+  latest paint, or `None` when no highlight was drawn.
 
 ## How it works
 
@@ -161,8 +186,15 @@ positive weights and `indigo` on negative ones. While `RUNNING`, a faint cyan ba
 across every 2.8 s. Without columns, the panel shows a pulsing `AWAITING NETWORK SIGNAL`,
 or `NO CONNECTION LAYERS TO DRAW` when the architecture has no layers. Each tick advances
 the signals by `dt · STATE_SPEED[state]` and decays the energy by `exp(-3.2 · dt)`. When
-the mouse is within two radii of a neuron, a tooltip shows `<COLUMN> · neuron <index>`,
-the neuron's label and its bias.
+the mouse is within two radii of a neuron, a tooltip shows `neuron_lines(...)`.
+
+**Highlight** (`_paint_selection`), drawn last while a neuron is selected and drawn: an
+`ice` ring of the neuron's radius + 4 px and a pulsing `accent` ring around it, plus a box
+with `neuron_lines(...)` framed in `accent_soft`, to the right of the neuron (to its left
+near the right edge) and kept inside the panel. The selection is stored by column title
+and neuron index and looked up at every paint, so it stays on the same neuron when the
+weights are rebuilt each epoch. A selection that is no longer drawn (a changed
+architecture) shows nothing.
 
 ## Used by / uses
 

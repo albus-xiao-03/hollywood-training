@@ -10,6 +10,8 @@
   listed under each layer's name.
 * Ambient animation: glowing neurons and **signals** travelling along connections, more
   often along stronger weights, flashing the neurons they reach.
+* The ``neuron`` command **highlights** one drawn neuron: a pulsing ring and a box with its
+  index, label and bias (:meth:`NetworkView.select_neuron`).
 
 The static part (frame, connections, neurons, labels) is rendered into a cached pixmap,
 rebuilt only when the weights or the layout change - i.e. during the synchronous epoch
@@ -298,10 +300,46 @@ class NetworkView(HudPanel):
         self._weights_version = -1
         self._radius = 6.0
         self._time = 0.0
+        self._selected: tuple[str, int] | None = None  # (column title, neuron index)
         self.last_painted_epoch: int | None = None
+        self.last_selection_readout: list[str] | None = None  # the box at the latest paint
         self.setMinimumSize(460, 320)
         self.setMouseTracking(True)
         clock.tick.connect(self._advance)
+
+    # --------------------------------------------------------------- selection
+    @property
+    def selected_neuron(self) -> tuple[str, int] | None:
+        """The highlighted neuron as ``(column title, neuron index)``, or None."""
+        return self._selected
+
+    def select_neuron(self, title: str | None, index: int | None = None) -> None:
+        """Highlight neuron ``index`` of the column titled ``title``; None removes it."""
+        self._selected = None if title is None or index is None else (title, int(index))
+        self.update()
+
+    def columns(self) -> list[Column]:
+        """The columns as drawn now, for the current architecture and weights."""
+        self._ensure_static()
+        return list(self._columns)
+
+    @staticmethod
+    def neuron_lines(column: Column, k: int) -> list[str]:
+        """What is shown about the ``k``-th drawn neuron of ``column``."""
+        index = int(column.indices[k])
+        lines = [f"{column.title} · neuron {index}"]
+        if column.labels and index < len(column.labels):
+            lines.append(column.labels[index])
+        if column.bias is not None:
+            lines.append(f"bias {float(column.bias[k]):+.5f}")
+        return lines
+
+    def _find(self, title: str, index: int) -> tuple[Column, int] | None:
+        for column in self._columns:
+            if column.title == title:
+                hits = np.flatnonzero(column.indices == index)
+                return (column, int(hits[0])) if hits.size else None
+        return None
 
     # ----------------------------------------------------------------- caching
     def _ensure_static(self) -> None:
@@ -540,13 +578,51 @@ class NetworkView(HudPanel):
         if self._static is not None:
             painter.drawPixmap(0, 0, self._static)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        readout = None
         if self._columns:
             self._paint_dynamic(painter)
+            readout = self._paint_selection(painter)
         else:
             self._paint_waiting(painter)
         painter.end()
         weights = self._session.weights
         self.last_painted_epoch = weights.epoch if weights is not None else None
+        self.last_selection_readout = readout
+
+    def _paint_selection(self, painter: QPainter) -> list[str] | None:
+        """The highlighted neuron: a pulsing ring and a box with what is known about it."""
+        found = None if self._selected is None else self._find(*self._selected)
+        if found is None:
+            return None
+        column, k = found
+        center = QPointF(column.x, float(column.ys[k]))
+        radius = self._radius
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.setPen(QPen(color(PALETTE.ice), 1.6))
+        painter.drawEllipse(center, radius + 4, radius + 4)
+        glow = pulse(self._time, 1.2)
+        painter.setPen(QPen(color(PALETTE.accent, int(70 + 130 * (1 - glow))), 1.2))
+        painter.drawEllipse(center, radius + 7 + 5 * glow, radius + 7 + 5 * glow)
+        lines = self.neuron_lines(column, k)
+        font = mono_font(8.0)
+        metrics = QFontMetrics(font)
+        width = max(metrics.horizontalAdvance(line) for line in lines) + 14
+        height = metrics.height() * len(lines) + 8
+        rect = self.content_rect()
+        left = center.x() + radius + 14
+        if left + width > rect.right():
+            left = center.x() - radius - 14 - width
+        top = min(max(center.y() - height / 2, rect.top()), rect.bottom() - height)
+        box = QRectF(left, top, width, height)
+        painter.setPen(QPen(color(PALETTE.accent_soft), 1.0))
+        painter.setBrush(color(PALETTE.void, 225))
+        painter.drawRect(box)
+        painter.setFont(font)
+        painter.setPen(color(PALETTE.ice))
+        for row, line in enumerate(lines):
+            baseline = box.top() + 4 + metrics.ascent() + row * metrics.height()
+            painter.drawText(QPointF(box.left() + 7, baseline), line)
+        return lines
 
     def _paint_dynamic(self, painter: QPainter) -> None:
         dpr = self.devicePixelRatioF()
@@ -619,13 +695,8 @@ class NetworkView(HudPanel):
                 continue
             for k, y in enumerate(column.ys):
                 if abs(position.y() - float(y)) <= self._radius * 2:
-                    index = int(column.indices[k])
-                    lines = [f"{column.title} · neuron {index}"]
-                    if column.labels and index < len(column.labels):
-                        lines.append(column.labels[index])
-                    if column.bias is not None:
-                        lines.append(f"bias {float(column.bias[k]):+.5f}")
-                    QToolTip.showText(event.globalPosition().toPoint(), "\n".join(lines), self)
+                    text = "\n".join(self.neuron_lines(column, k))
+                    QToolTip.showText(event.globalPosition().toPoint(), text, self)
                     return
         QToolTip.hideText()
         super().mouseMoveEvent(event)

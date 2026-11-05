@@ -15,9 +15,12 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
+import numpy as np
+
 from ..commands.view import ViewError, ViewRequest
 
 if TYPE_CHECKING:
+    from .widgets.network_view import Column
     from .window import MainWindow
 
 Handler = Callable[..., str]
@@ -31,6 +34,7 @@ class ViewActions:
         self._handlers: dict[str, Handler] = {
             "scale": self.scale,
             "probe": self.probe,
+            "neuron": self.neuron,
         }
 
     @property
@@ -74,3 +78,77 @@ class ViewActions:
             return "no probe line to remove"
         chart.set_probe(None)
         return "probe line removed"
+
+    # ------------------------------------------------------------ network view
+    def neuron(self, column: str | None, index: int | None) -> str:
+        """``neuron [column] [index]`` / ``neuron off``: highlight a neuron (replaces its
+        tooltip). Without arguments: the drawn columns; with a column only: its neurons."""
+        network = self._window.network
+        if column == "off" and index is None:
+            if network.selected_neuron is None:
+                return "no neuron highlighted"
+            network.select_neuron(None)
+            return "neuron highlight removed"
+        columns = network.columns()
+        if not columns:
+            raise ViewError("no network drawn yet")
+        if column is None:
+            width = max(len(each.title) for each in columns)
+            lines = ["drawn columns ('neuron <column> <index>' highlights a neuron):"]
+            lines += [
+                f"  {each.title:<{width}}  {each.caption:<20}  neurons {_summary(each)}"
+                for each in columns
+            ]
+            return "\n".join(lines)
+        chosen = _column(columns, column)
+        if index is None:
+            return f"{chosen.title} · drawn neurons {_indices(chosen)}"
+        hits = np.flatnonzero(chosen.indices == index)
+        if not hits.size:
+            raise ViewError(
+                f"{chosen.title} has no drawn neuron {index} - drawn: {_indices(chosen)}"
+            )
+        network.select_neuron(chosen.title, index)
+        return "\n".join(network.neuron_lines(chosen, int(hits[0])))
+
+
+def _normal(title: str) -> str:
+    """Column titles compare without case; '-' and '_' stand for spaces."""
+    return title.casefold().replace("-", " ").replace("_", " ")
+
+
+def _column(columns: list[Column], name: str) -> Column:
+    for column in columns:
+        if _normal(column.title) == _normal(name):
+            return column
+    titles = ", ".join(column.title for column in columns)
+    raise ViewError(f"no column {name!r} - columns: {titles}")
+
+
+def _runs(indices: np.ndarray) -> list[str]:
+    """Consecutive indices as ranges: [0, 1, 2, 5] -> ['0-2', '5']."""
+    values = [int(value) for value in indices]
+    runs: list[str] = []
+    start = previous = values[0]
+    for value in [*values[1:], None]:
+        if value is not None and value == previous + 1:
+            previous = value
+            continue
+        runs.append(str(start) if start == previous else f"{start}-{previous}")
+        if value is not None:
+            start = previous = value
+    return runs
+
+
+def _indices(column: Column) -> str:
+    """Every drawn neuron index of ``column``, consecutive ones as ranges."""
+    return ", ".join(_runs(column.indices)) if len(column.indices) else "none"
+
+
+def _summary(column: Column) -> str:
+    """The drawn indices in short: a range, or first to last with the count."""
+    runs = _runs(column.indices) if len(column.indices) else []
+    if len(runs) <= 1:
+        return runs[0] if runs else "none"
+    first, last = int(column.indices[0]), int(column.indices[-1])
+    return f"{first} … {last} ({len(column.indices)} drawn)"

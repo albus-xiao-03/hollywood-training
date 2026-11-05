@@ -33,6 +33,7 @@ class ViewActions:
     # the built-in actions
     def scale(self, mode: str | None) -> str
     def probe(self, epoch: int | None) -> str
+    def neuron(self, column: str | None, index: int | None) -> str
 ```
 
 * `names`: the registered action names, sorted.
@@ -48,18 +49,25 @@ class ViewActions:
 | Action | Command | Handler | Effect and answer |
 |---|---|---|---|
 | `scale` | `scale [lin\|log]` | `scale(mode)` | `chart.set_log_scale(...)`: `log` / `lin`, or the opposite of the current scale for `None`. Answers `loss axis: linear` or `loss axis: logarithmic`, plus `(drawn linear until a loss is positive)` when `chart.has_positive_loss()` is false |
+| `neuron` | `neuron [column] [index]`, `neuron off` | `neuron(column, index)` | No arguments: lists the drawn columns (`drawn columns ('neuron <column> <index>' highlights a neuron):`, then one line per column with its title, caption and drawn neuron indices, e.g. `neurons 0-5` or `neurons 0 … 39 (8 drawn)`). A column only: `<COLUMN> · drawn neurons 0, 6, 11-12, …`. A column and an index: `network.select_neuron(...)`, answering `network.neuron_lines(...)`. `off`: removes the highlight (`neuron highlight removed`, or `no neuron highlighted`). Refuses `no network drawn yet`, `no column 'x' - columns: …`, `<COLUMN> has no drawn neuron n - drawn: …` |
 | `probe` | `probe [epoch\|off]` | `probe(epoch)` | `chart.set_probe(epoch)` for an epoch, answering nothing (the command reports the epoch's values). For `None` (`probe off`): removes the line and answers `probe line removed`, or `no probe line to remove` |
 
 The arguments arrive already checked by the command handler (see
 [Built-in Commands](Commands-Builtin)). What only the window knows, such as which
 neurons are drawn, is checked here.
 
+**Column names.** `neuron` finds a column by the title the network view draws above it:
+`INPUT`, a layer name in upper case such as `FC1`, or `<LAYER> IN` for a reshaped input.
+The comparison ignores case, and `-` or `_` stand for a space (`neuron fc2-in 3`).
+Columns have no numbers: the layers of an `nn.Sequential` are named `0`, `1`, `2`, ...
+themselves, so a number would be ambiguous.
+
 ## Used by / uses
 
 * Used by [Main Window](GUI-Main-Window) (`handle_view`), and through it by both frontends
   and the [Window Process](GUI-Window-Process).
 * Uses `ViewRequest` and `ViewError` ([View Requests](Commands-View)) and the panels of
-  the window: [Loss Chart](GUI-Loss-Chart).
+  the window: [Loss Chart](GUI-Loss-Chart) and [Network View](GUI-Network-View).
 
 ## Example
 

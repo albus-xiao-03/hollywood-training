@@ -82,6 +82,7 @@ error log line `<description> failed: <Type>: <message>` appears.
 | `weights [layer]` | | show weight statistics |
 | `scale [mode]` | | switch the loss axis between linear and logarithmic |
 | `probe [epoch]` | | show an epoch's values and mark it on the loss chart |
+| `neuron [column] [index]` | | highlight a neuron on the network view |
 | `save <path>` | | save the model's `state_dict` |
 | `screenshot [path]` | | save a PNG of the window |
 | `clear` | `cls` | clear the terminal |
@@ -226,6 +227,28 @@ epoch 12 of 40
 The title says `(best)` for the best epoch. Fails with `no completed epochs yet`, with
 `epoch 50 has not completed yet (last completed: 25)`, and with
 `invalid epoch 'x': must be an epoch number (1 or more) or off`.
+
+**`neuron [column] [index]`** highlights a neuron on the network view with a ring and a
+box showing what the neuron tooltip showed before: the column, the neuron index, its
+label and its bias. The output is the same text. A column is named by its title as
+drawn (`INPUT`, a layer name such as `fc1` or `0`, or `fc2-in` for a reshaped input;
+case does not matter). The index is the neuron's index in the layer; only drawn neurons
+can be highlighted (wide layers are sampled). `neuron off` removes the highlight.
+
+```text
+ht ❯ neuron
+drawn columns ('neuron <column> <index>' highlights a neuron):
+  INPUT  2 features            neurons 0-1
+  FC1    20 of 128 neurons     neurons 0 … 127 (20 drawn)
+  FC2    3 neurons             neurons 0-2
+ht ❯ neuron fc2 1
+FC2 · neuron 1
+class 1
+bias +0.04213
+```
+
+`neuron fc1` lists the drawn neurons of one column. Fails with `no network drawn yet`,
+`no column 'x' - columns: …` and `FC1 has no drawn neuron 5 - drawn: 0, 7, 13, …`.
 
 ### Session
 
