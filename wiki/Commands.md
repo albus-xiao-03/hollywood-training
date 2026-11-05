@@ -83,6 +83,7 @@ error log line `<description> failed: <Type>: <message>` appears.
 | `scale [mode]` | | switch the loss axis between linear and logarithmic |
 | `probe [epoch]` | | show an epoch's values and mark it on the loss chart |
 | `neuron [column] [index]` | | highlight a neuron on the network view |
+| `layout [panel] [percent]` | | show or change the panel sizes |
 | `save <path>` | | save the model's `state_dict` |
 | `screenshot [path]` | | save a PNG of the window |
 | `clear` | `cls` | clear the terminal |
@@ -249,6 +250,27 @@ bias +0.04213
 
 `neuron fc1` lists the drawn neurons of one column. Fails with `no network drawn yet`,
 `no column 'x' - columns: …` and `FC1 has no drawn neuron 5 - drawn: 0, 7, 13, …`.
+
+**`layout [panel] [percent]`** shows or changes how much room each panel gets. The panels
+are `left` and `right` (the two columns), `network` and `terminal` (the left column), and
+`status`, `chart` and `usage` (the right column). `layout chart 50` gives the loss chart
+half of the right column; the status and usage panels share the rest in their current
+proportions. A trailing `%` is fine. Minimum sizes still apply: when they win, the output
+adds `(limited by the panels' minimum sizes)`. `layout <panel>` shows one share, and
+`layout reset` restores the initial layout.
+
+```text
+ht ❯ layout
+columns       left 62% · right 38%
+left column   network 70% · terminal 30%
+right column  status 44% · chart 36% · usage 20%
+'layout <panel> <percent>' resizes, 'layout reset' restores
+ht ❯ layout chart 50
+right column  status 34% · chart 50% · usage 16%
+```
+
+Fails with `no panel 'x' - panels: …`, `invalid percent '0': must be a whole number from
+1 to 99` and `'layout reset' takes no percentage`.
 
 ### Session
 

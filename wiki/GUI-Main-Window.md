@@ -25,6 +25,17 @@ frontend owns it. Both frontends use it unchanged: the
 ## API
 
 ```python
+SPLITS: dict[str, tuple[tuple[str, ...], tuple[int, ...]]] = {
+    "columns": (("left", "right"), (62, 38)),
+    "left": (("network", "terminal"), (70, 30)),
+    "right": (("status", "chart", "usage"), (44, 36, 20)),
+}
+```
+
+The three splitters, the names of the panels they hold, and each panel's initial share in
+percent. The `layout` command uses these names.
+
+```python
 STATE_LEVEL = {
     TrainingState.RUNNING: "success",
     TrainingState.PAUSED: "warning",
@@ -64,6 +75,12 @@ class MainWindow(QMainWindow):
     def run_command(self, line: str) -> None
     def show_command_result(self, ok: bool, output: str) -> None
     def handle_view(self, request: ViewRequest) -> tuple[bool, str]
+
+    @staticmethod
+    def panel_splitter(panel: str) -> str
+    def panel_shares(self) -> dict[str, dict[str, int]]
+    def set_panel_share(self, panel: str, percent: float) -> None
+    def reset_layout(self) -> None
     def save_screenshot(self, path: Path) -> Path
     def closeEvent(self, event) -> None
 ```
@@ -87,6 +104,10 @@ class MainWindow(QMainWindow):
 | `run_command(line)` | Enters `line` as if it was typed: echo, then `command_submitted`. |
 | `show_command_result(ok, output)` | Writes `output` at level `info` if `ok`, else `error`. Empty output writes nothing. |
 | `handle_view(request)` | Carries out a window-only request with `view_actions.handle(request)` ([View Actions](GUI-View-Actions)). Returns `(True, text)`, or `(False, message)` when the request is refused or the action is unknown. |
+| `panel_splitter(panel)` | The name of the splitter that holds `panel` (`columns`, `left` or `right`). Raises `ValueError("no panel 'x' - panels: ...")` for an unknown name. |
+| `panel_shares()` | Every panel's share of its splitter in percent (rounded), by splitter: `{"columns": {"left": 62, "right": 38}, ...}`. |
+| `set_panel_share(panel, percent)` | Gives `panel` `percent` of its splitter. The other panels of that splitter share the rest in their current proportions. Minimum sizes still apply, so the result can differ. |
+| `reset_layout()` | Restores the initial shares of `SPLITS`. |
 | `save_screenshot(path)` | Creates the parent folders, saves `grab()` as a PNG and returns the resolved path. Raises `OSError` when the file cannot be written. |
 | `closeEvent(event)` | Emits `closing`, stops the clock and the usage panel's timer, then closes. |
 | `closing` | Emitted when the window closes. Both frontends stop training on it. |
@@ -94,14 +115,15 @@ class MainWindow(QMainWindow):
 
 ## How it works
 
-**Layout.** Three splitters, each with an 8 px handle, non-collapsible children, and
-stretch factors equal to the shares:
+**Layout.** Three splitters (`splitters`, by name), each with an 8 px handle,
+non-collapsible children, and stretch factors equal to the initial shares. The `layout`
+command changes the shares from the keyboard ([View Actions](GUI-View-Actions)):
 
 | Splitter | Orientation | Children (initial share) |
 |---|---|---|
-| left | vertical | `network` 70, `terminal` 30 |
-| right | vertical | `status` 44, `chart` 36, `usage` 20 |
-| main | horizontal | left 62, right 38 |
+| `left` | vertical | `network` 70, `terminal` 30 |
+| `right` | vertical | `status` 44, `chart` 36, `usage` 20 |
+| `columns` | horizontal | `left` 62, `right` 38 |
 
 The backdrop's vertical layout (margins 14/8/14/14 px, spacing 6 px) holds the 80 px
 header above the main splitter. The minimum size is 960 × 680. At construction the window

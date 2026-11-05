@@ -1,6 +1,6 @@
 """``MainWindow``: assembles the panels and routes session events to them.
 
-Layout (resizable with splitters)::
+Layout (three splitters; the ``layout`` command resizes the panels)::
 
     ┌──────────────────────────── header: title · NETWORK CLASS · state ────────────────┐
     │  neural architecture (neurons, connections, weights) │ training status            │
@@ -53,6 +53,14 @@ from .keyboard_focus import KeyboardFocus
 from .theme import PALETTE, app_icon, color, stylesheet
 from .view_actions import ViewActions
 from .widgets import HeaderBar, LossChart, NetworkView, StatusPanel, TerminalPanel, UsagePanel
+
+# The splitters and the panels they hold, with the initial share of each panel (percent).
+# The ``layout`` command sets these shares from the keyboard.
+SPLITS: dict[str, tuple[tuple[str, ...], tuple[int, ...]]] = {
+    "columns": (("left", "right"), (62, 38)),
+    "left": (("network", "terminal"), (70, 30)),
+    "right": (("status", "chart", "usage"), (44, 36, 20)),
+}
 
 STATE_LEVEL = {
     TrainingState.RUNNING: "success",
@@ -137,11 +145,11 @@ class MainWindow(QMainWindow):
         self.chart = LossChart(session, self.clock)
         self.usage = UsagePanel(self.clock)
 
-        left = self._splitter(Qt.Orientation.Vertical, [self.network, self.terminal], [70, 30])
-        right = self._splitter(
-            Qt.Orientation.Vertical, [self.status, self.chart, self.usage], [44, 36, 20]
-        )
-        main = self._splitter(Qt.Orientation.Horizontal, [left, right], [62, 38])
+        vertical, horizontal = Qt.Orientation.Vertical, Qt.Orientation.Horizontal
+        left = self._splitter(vertical, [self.network, self.terminal], SPLITS["left"][1])
+        right = self._splitter(vertical, [self.status, self.chart, self.usage], SPLITS["right"][1])
+        main = self._splitter(horizontal, [left, right], SPLITS["columns"][1])
+        self.splitters = {"columns": main, "left": left, "right": right}
         layout = QVBoxLayout(backdrop)
         layout.setContentsMargins(14, 8, 14, 14)
         layout.setSpacing(6)
@@ -157,7 +165,7 @@ class MainWindow(QMainWindow):
         self.view_actions = ViewActions(self)
 
     @staticmethod
-    def _splitter(orientation, widgets: list[QWidget], shares: list[int]) -> QSplitter:
+    def _splitter(orientation, widgets: list[QWidget], shares: tuple[int, ...]) -> QSplitter:
         splitter = QSplitter(orientation)
         splitter.setChildrenCollapsible(False)
         splitter.setHandleWidth(8)
@@ -178,6 +186,47 @@ class MainWindow(QMainWindow):
         height = min(available.height(), max(680, min(1020, int(available.height() * 0.88))))
         self.resize(width, height)
         self.move(available.center().x() - width // 2, available.center().y() - height // 2)
+
+    # ------------------------------------------------------------------ layout
+    @staticmethod
+    def panel_splitter(panel: str) -> str:
+        """The splitter that holds ``panel``; ``ValueError`` for an unknown panel."""
+        for name, (panels, _shares) in SPLITS.items():
+            if panel in panels:
+                return name
+        names = ", ".join(p for panels, _shares in SPLITS.values() for p in panels)
+        raise ValueError(f"no panel {panel!r} - panels: {names}")
+
+    def panel_shares(self) -> dict[str, dict[str, int]]:
+        """Each panel's share of its splitter in percent, by splitter."""
+        shares: dict[str, dict[str, int]] = {}
+        for name, (panels, _initial) in SPLITS.items():
+            sizes = self.splitters[name].sizes()
+            total = sum(sizes) or 1
+            shares[name] = {p: round(100 * s / total) for p, s in zip(panels, sizes, strict=True)}
+        return shares
+
+    def set_panel_share(self, panel: str, percent: float) -> None:
+        """Give ``panel`` ``percent`` of its splitter; the other panels share the rest in their
+        current proportions. Minimum sizes still apply."""
+        name = self.panel_splitter(panel)
+        position = SPLITS[name][0].index(panel)
+        splitter = self.splitters[name]
+        sizes = splitter.sizes()
+        total = sum(sizes) or 100 * len(sizes)  # not laid out yet: sizes are weights
+        wanted = total * percent / 100
+        others = sum(max(1, size) for k, size in enumerate(sizes) if k != position)
+        splitter.setSizes(
+            [
+                round(wanted if k == position else (total - wanted) * max(1, size) / others)
+                for k, size in enumerate(sizes)
+            ]
+        )
+
+    def reset_layout(self) -> None:
+        """Restore the initial panel shares."""
+        for name, (_panels, shares) in SPLITS.items():
+            self.splitters[name].setSizes([share * 100 for share in shares])
 
     def _update_title(self) -> None:
         if self._title:

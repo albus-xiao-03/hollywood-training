@@ -351,3 +351,70 @@ def test_neuron_needs_a_network(qtbot):
         True,
         "no neuron highlighted",
     )
+
+
+# ----------------------------------------------------------------------- layout
+@pytest.fixture
+def roomy(gui, qtbot):
+    """The fixture's window, large enough that no minimum size bends the shares."""
+    gui.window.resize(1600, 1000)
+    qtbot.waitUntil(lambda: sum(gui.window.splitters["right"].sizes()) > 700)
+    gui.window.reset_layout()
+    return gui
+
+
+def test_layout_shows_the_panel_shares(roomy):
+    lines = run(roomy, "layout").output.splitlines()
+    assert lines[0].startswith("columns ") and lines[0].endswith("left 62% · right 38%")
+    assert lines[1].startswith("left column ") and lines[1].endswith("network 70% · terminal 30%")
+    assert lines[2].startswith("right column ")
+    assert lines[2].endswith("status 44% · chart 36% · usage 20%")
+    assert lines[3] == "'layout <panel> <percent>' resizes, 'layout reset' restores"
+    assert run(roomy, "layout usage").output == "usage: 20% of the right column"
+
+
+def test_layout_sets_a_share_and_keeps_the_others_in_proportion(roomy):
+    window = roomy.window
+    before = window.splitters["right"].sizes()
+    answer = run(roomy, "layout chart 50").output
+    shares = window.panel_shares()["right"]
+    assert answer == f"right column  status {shares['status']}% · chart 50% · usage 20%".replace(
+        "usage 20%", f"usage {shares['usage']}%"
+    )
+    after = window.splitters["right"].sizes()
+    assert abs(after[1] / sum(after) - 0.5) < 0.01 and sum(after) == sum(before)
+    ratio_before, ratio_after = before[0] / before[2], after[0] / after[2]
+    assert abs(ratio_after - ratio_before) / ratio_before < 0.05  # status : usage kept
+    assert run(roomy, "layout left 75%").ok  # a trailing % is fine
+    assert abs(window.panel_shares()["columns"]["left"] - 75) <= 1
+
+
+def test_layout_keeps_minimum_sizes(roomy):
+    answer = run(roomy, "layout chart 95").output
+    assert answer.endswith("(limited by the panels' minimum sizes)")
+    assert roomy.window.panel_shares()["right"]["chart"] < 95
+    assert all(
+        widget.height() >= widget.minimumHeight()
+        for widget in (roomy.window.status, roomy.window.chart, roomy.window.usage)
+    )
+
+
+def test_layout_reset_restores_the_initial_shares(roomy):
+    run(roomy, "layout network 80")
+    assert run(roomy, "layout network").output == "network: 80% of the left column"
+    lines = run(roomy, "layout reset").output.splitlines()
+    assert lines[0] == "layout reset" and lines[2].endswith("network 70% · terminal 30%")
+    assert roomy.window.panel_shares()["left"] == {"network": 70, "terminal": 30}
+
+
+def test_layout_refusals(roomy):
+    panels = "left, right, network, terminal, status, chart, usage"
+    for line, message in [
+        ("layout desk 50", f"no panel 'desk' - panels: {panels}"),
+        ("layout chart 0", "invalid percent '0': must be a whole number from 1 to 99"),
+        ("layout chart 100", "invalid percent '100': must be a whole number from 1 to 99"),
+        ("layout reset 50", "'layout reset' takes no percentage"),
+    ]:
+        result = run(roomy, line)
+        assert not result.ok and result.output == message, line
+    assert run(roomy, "layout CHART 40").ok  # panel names ignore case

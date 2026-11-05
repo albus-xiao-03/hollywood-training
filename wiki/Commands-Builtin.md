@@ -45,6 +45,7 @@ def create_registry(extra: Iterable[Command] = ()) -> CommandRegistry: ...
 | `_non_negative_float` | finite `float(text) >= 0` | `must be a non-negative number` | `delay` |
 | `_positive_float` | finite `float(text) > 0` | `must be a positive number` | `lr` |
 | `_non_negative_int` | `int(text) >= 0` | `must be 0 or more`, or `int()`'s own message | `neuron` |
+| `_percent` | `int(text without a trailing %)` from 1 to 99 | `must be a whole number from 1 to 99`, or `int()`'s own message | `layout` |
 | `_epoch_or_off` | `"off"`, or `int(text) >= 1` | `must be an epoch number (1 or more) or off` | `probe` |
 
 ### Handlers
@@ -67,6 +68,7 @@ training process for the window process, the GUI (main) thread for the in-proces
 | `arch` | `_architecture` | | formats `session.architecture` | handler thread |
 | `weights` | `_weights` | unknown layer → `CommandError` | formats `session.weights` | handler thread |
 | `probe` | `_probe` | no history → `no completed epochs yet`; an epoch not in `session.history` → `epoch <n> has not completed yet (last completed: <last>)` | `ctx.show(ViewRequest("probe", (epoch,)))`, then formats the record (`_probe_report`), plus a note while the session is `RUNNING` that the line clears at the next epoch; `off` → `ctx.show(ViewRequest("probe", (None,)))` | handler thread, then the window |
+| `layout` | `_layout` | converter only; the window checks the panel name | `ctx.show(ViewRequest("layout", (panel, percent)))` | handler thread, then the window |
 | `neuron` | `_neuron` | converters only; the window checks the column and the index | `ctx.show(ViewRequest("neuron", (column, index)))` | handler thread, then the window |
 | `scale` | `_scale` | `mode` choices `lin`, `log` | `ctx.show(ViewRequest("scale", (mode,)))` | handler thread, then the window |
 | `save` | `_save` | | `submit(save, "save weights to <path>")` | **training thread** |

@@ -25,6 +25,10 @@ if TYPE_CHECKING:
 
 Handler = Callable[..., str]
 
+# How the `layout` command names the splitters.
+SPLIT_LABELS = {"columns": "columns", "left": "left column", "right": "right column"}
+SPLIT_NAMES = {"columns": "the width", "left": "the left column", "right": "the right column"}
+
 
 class ViewActions:
     """The window-only actions of one :class:`MainWindow`, by action name."""
@@ -35,6 +39,7 @@ class ViewActions:
             "scale": self.scale,
             "probe": self.probe,
             "neuron": self.neuron,
+            "layout": self.layout,
         }
 
     @property
@@ -110,6 +115,44 @@ class ViewActions:
             )
         network.select_neuron(chosen.title, index)
         return "\n".join(network.neuron_lines(chosen, int(hits[0])))
+
+    # ------------------------------------------------------------------ layout
+    def layout(self, panel: str | None, percent: int | None) -> str:
+        """``layout [panel] [percent]`` / ``layout reset``: panel sizes (replaces dragging
+        the splitters). Without arguments: every panel's share."""
+        window = self._window
+        if panel is None:
+            return f"{self._shares()}\n'layout <panel> <percent>' resizes, 'layout reset' restores"
+        panel = panel.lower()
+        if panel == "reset":
+            if percent is not None:
+                raise ViewError("'layout reset' takes no percentage")
+            window.reset_layout()
+            return f"layout reset\n{self._shares()}"
+        try:
+            splitter = window.panel_splitter(panel)
+        except ValueError as exc:
+            raise ViewError(str(exc)) from None
+        if percent is None:
+            share = window.panel_shares()[splitter][panel]
+            return f"{panel}: {share}% of {SPLIT_NAMES[splitter]}"
+        window.set_panel_share(panel, percent)
+        shares = window.panel_shares()[splitter]
+        line = f"{SPLIT_LABELS[splitter]}  {_share_line(shares)}"
+        if abs(shares[panel] - percent) > 1:
+            line += " (limited by the panels' minimum sizes)"
+        return line
+
+    def _shares(self) -> str:
+        width = max(len(label) for label in SPLIT_LABELS.values())
+        return "\n".join(
+            f"{SPLIT_LABELS[name]:<{width}}  {_share_line(shares)}"
+            for name, shares in self._window.panel_shares().items()
+        )
+
+
+def _share_line(shares: dict[str, int]) -> str:
+    return " · ".join(f"{panel} {share}%" for panel, share in shares.items())
 
 
 def _normal(title: str) -> str:

@@ -34,8 +34,9 @@ in the training process instead.
                      62 %                                   38 %
 ```
 
-The percentages are the initial splitter shares. All splitters can be dragged, but panels
-cannot be collapsed. Every panel except the header is a [HUD Panel](GUI-HUD-Panel).
+The percentages are the initial splitter shares. The `layout` command changes them
+(`layout chart 50`, `layout reset`); splitters can also still be dragged. Panels cannot be
+collapsed. Every panel except the header is a [HUD Panel](GUI-HUD-Panel).
 Details: [Main Window](GUI-Main-Window).
 
 ## What each panel shows

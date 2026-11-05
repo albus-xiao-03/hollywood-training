@@ -34,6 +34,7 @@ class ViewActions:
     def scale(self, mode: str | None) -> str
     def probe(self, epoch: int | None) -> str
     def neuron(self, column: str | None, index: int | None) -> str
+    def layout(self, panel: str | None, percent: int | None) -> str
 ```
 
 * `names`: the registered action names, sorted.
@@ -49,6 +50,7 @@ class ViewActions:
 | Action | Command | Handler | Effect and answer |
 |---|---|---|---|
 | `scale` | `scale [lin\|log]` | `scale(mode)` | `chart.set_log_scale(...)`: `log` / `lin`, or the opposite of the current scale for `None`. Answers `loss axis: linear` or `loss axis: logarithmic`, plus `(drawn linear until a loss is positive)` when `chart.has_positive_loss()` is false |
+| `layout` | `layout [panel] [percent]`, `layout reset` | `layout(panel, percent)` | No arguments: every panel's share, one line per splitter (`columns  left 62% · right 38%`, `left column  network 70% · terminal 30%`, `right column  status 44% · chart 36% · usage 20%`) and a usage hint. A panel only: `<panel>: <share>% of the right column`. A panel and a percentage: `window.set_panel_share(...)`, answering the new shares of that splitter, plus `(limited by the panels' minimum sizes)` when the panel's share ends up more than 1 point off. `reset`: `window.reset_layout()`, answering `layout reset` and the shares. Panel names ignore case. Refuses `no panel 'x' - panels: …` and `'layout reset' takes no percentage` |
 | `neuron` | `neuron [column] [index]`, `neuron off` | `neuron(column, index)` | No arguments: lists the drawn columns (`drawn columns ('neuron <column> <index>' highlights a neuron):`, then one line per column with its title, caption and drawn neuron indices, e.g. `neurons 0-5` or `neurons 0 … 39 (8 drawn)`). A column only: `<COLUMN> · drawn neurons 0, 6, 11-12, …`. A column and an index: `network.select_neuron(...)`, answering `network.neuron_lines(...)`. `off`: removes the highlight (`neuron highlight removed`, or `no neuron highlighted`). Refuses `no network drawn yet`, `no column 'x' - columns: …`, `<COLUMN> has no drawn neuron n - drawn: …` |
 | `probe` | `probe [epoch\|off]` | `probe(epoch)` | `chart.set_probe(epoch)` for an epoch, answering nothing (the command reports the epoch's values). For `None` (`probe off`): removes the line and answers `probe line removed`, or `no probe line to remove` |
 
@@ -67,7 +69,9 @@ themselves, so a number would be ambiguous.
 * Used by [Main Window](GUI-Main-Window) (`handle_view`), and through it by both frontends
   and the [Window Process](GUI-Window-Process).
 * Uses `ViewRequest` and `ViewError` ([View Requests](Commands-View)) and the panels of
-  the window: [Loss Chart](GUI-Loss-Chart) and [Network View](GUI-Network-View).
+  the window: [Loss Chart](GUI-Loss-Chart), [Network View](GUI-Network-View), and the
+  splitters of the [Main Window](GUI-Main-Window) (`panel_shares`, `set_panel_share`,
+  `reset_layout`).
 
 ## Example
 

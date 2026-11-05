@@ -17,6 +17,7 @@
 ``scale [lin|log]``     loss chart axis: linear or logarithmic (switches when omitted)
 ``probe [epoch|off]``   an epoch's values, marked on the loss chart (default: latest)
 ``neuron [col] [n]``    highlight a drawn neuron (``neuron off``; no args: columns)
+``layout [panel] [%]``  show or set the panel sizes (``layout reset``)
 ``screenshot [path]``   save a PNG of the window (GUI only)
 ``clear``               clear the terminal (alias: ``cls``)
 ``quit``                stop training and close the window (alias: ``exit``)
@@ -25,9 +26,9 @@
 Commands that change the run are refused once the training session has ended
 (``TrainingControl.closed``); inspection, ``lr`` and ``save`` keep working.
 
-The ``view`` commands (``scale``, ``probe``, ``neuron``, ...) only change the window: they
-replace the mouse interactions of the first version (SPEC R2) and reach the window as a
-:class:`~hollywood_training.commands.view.ViewRequest`.
+The ``view`` commands (``scale``, ``probe``, ``neuron``, ``layout``, ...) only change the
+window: they replace the mouse interactions of the first version (SPEC R2) and reach the
+window as a :class:`~hollywood_training.commands.view.ViewRequest`.
 """
 
 from __future__ import annotations
@@ -75,6 +76,13 @@ def _non_negative_int(text: str) -> int:
     value = int(text)
     if value < 0:
         raise ValueError("must be 0 or more")
+    return value
+
+
+def _percent(text: str) -> int:
+    value = int(text.removesuffix("%"))
+    if not 1 <= value <= 99:
+        raise ValueError("must be a whole number from 1 to 99")
     return value
 
 
@@ -321,6 +329,10 @@ def _neuron(ctx: CommandContext, column: str | None, index: int | None) -> str:
     return ctx.show(ViewRequest("neuron", (column, index)))
 
 
+def _layout(ctx: CommandContext, panel: str | None, percent: int | None) -> str:
+    return ctx.show(ViewRequest("layout", (panel, percent)))
+
+
 def _probe_report(record, session) -> str:
     best = session.best_record()
     title = f"epoch {record.epoch} of {session.total_epochs}"
@@ -480,6 +492,16 @@ def builtin_commands() -> list[Command]:
             category="view",
             details="Without arguments: the drawn columns. With a column only: its drawn\n"
             "neurons. 'neuron off' removes the highlight.",
+        ),
+        Command(
+            "layout", "show or change the panel sizes", _layout,
+            arguments=(
+                Argument("panel", str, "panel name, or reset", True),
+                Argument("percent", _percent, "share of its column or row (1-99)", True),
+            ),
+            category="view",
+            details="Panels: left, right (the two columns); network, terminal (left column);\n"
+            "status, chart, usage (right column). Minimum sizes still apply.",
         ),
         Command(
             "save", "save the model's state_dict", _save,
