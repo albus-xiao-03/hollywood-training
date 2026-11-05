@@ -13,7 +13,8 @@ synchronously; it runs while the training loop waits for an epoch's hand-off.
 
 The window does not execute commands itself: an entered line is echoed and emitted as
 :attr:`MainWindow.command_submitted`; the frontend runs it wherever the training objects
-live and hands the outcome back with :meth:`MainWindow.show_command_result`.
+live and hands the outcome back with :meth:`MainWindow.show_command_result`. Commands that
+only change the window come back as a ``ViewRequest`` for :meth:`MainWindow.handle_view`.
 
 While the window is active, every key goes to the terminal's command line
 (:class:`~hollywood_training.gui.keyboard_focus.KeyboardFocus`).
@@ -29,6 +30,7 @@ from PySide6.QtGui import QGuiApplication, QPainter, QPen, QPixmap, QRadialGradi
 from PySide6.QtWidgets import QMainWindow, QSplitter, QVBoxLayout, QWidget
 
 from .. import formatting as fmt
+from ..commands.view import ViewError, ViewRequest
 from ..sync.events import (
     EpochCompleted,
     Event,
@@ -145,6 +147,7 @@ class MainWindow(QMainWindow):
         self.clock.start()
         self.keyboard = KeyboardFocus(self, self.terminal.input)
         self.terminal.input.setFocus()
+        self._view_actions: dict[str, Callable[..., str]] = {}
 
     @staticmethod
     def _splitter(orientation, widgets: list[QWidget], shares: list[int]) -> QSplitter:
@@ -247,6 +250,16 @@ class MainWindow(QMainWindow):
     def show_command_result(self, ok: bool, output: str) -> None:
         if output:
             self.terminal.write(output, "info" if ok else "error")
+
+    def handle_view(self, request: ViewRequest) -> tuple[bool, str]:
+        """Carry out a window-only command request; returns ``(ok, message)``."""
+        handler = self._view_actions.get(request.action)
+        if handler is None:
+            return False, f"unknown window action {request.action!r}"
+        try:
+            return True, handler(*request.arguments)
+        except ViewError as exc:
+            return False, str(exc)
 
     def save_screenshot(self, path: Path) -> Path:
         path = Path(path)

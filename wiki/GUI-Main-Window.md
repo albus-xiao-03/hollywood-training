@@ -16,6 +16,7 @@ frontend owns it. Both frontends use it unchanged: the
   plus a synchronous repaint (`render_now()`) for every synchronous event.
 * Echo entered command lines, emit them as `command_submitted`, and print results handed
   back through `show_command_result()`.
+* Carry out window-only command requests (`handle_view()`, [View Requests](Commands-View)).
 * Route the keyboard to the terminal: `keyboard`, a [Keyboard Focus](GUI-Keyboard-Focus)
   lock, sends every key typed while the window is active to the command line.
 * Save screenshots, and emit `closing` when the window is closed.
@@ -61,6 +62,7 @@ class MainWindow(QMainWindow):
     def render_now(self) -> None
     def run_command(self, line: str) -> None
     def show_command_result(self, ok: bool, output: str) -> None
+    def handle_view(self, request: ViewRequest) -> tuple[bool, str]
     def save_screenshot(self, path: Path) -> Path
     def closeEvent(self, event) -> None
 ```
@@ -82,6 +84,7 @@ class MainWindow(QMainWindow):
 | `render_now()` | Calls `repaint()` on `header`, `network`, `status` and `chart`. Each runs its `paintEvent` before the call returns. |
 | `run_command(line)` | Enters `line` as if it was typed: echo, then `command_submitted`. |
 | `show_command_result(ok, output)` | Writes `output` at level `info` if `ok`, else `error`. Empty output writes nothing. |
+| `handle_view(request)` | Carries out a window-only request: calls the handler registered for `request.action` with `*request.arguments`. Returns `(True, text)`, or `(False, message)` when the handler raises `ViewError` or the action is unknown (`unknown window action '<action>'`). |
 | `save_screenshot(path)` | Creates the parent folders, saves `grab()` as a PNG and returns the resolved path. Raises `OSError` when the file cannot be written. |
 | `closeEvent(event)` | Emits `closing`, stops the clock and the usage panel's timer, then closes. |
 | `closing` | Emitted when the window closes. Both frontends stop training on it. |

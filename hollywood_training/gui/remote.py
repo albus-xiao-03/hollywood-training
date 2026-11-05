@@ -31,6 +31,7 @@ from pathlib import Path
 
 from ..commands.context import CommandContext
 from ..commands.registry import CommandRegistry
+from ..commands.view import ViewRequest
 from ..monitor.system import SystemMonitor
 from ..sync.channel import Envelope, SyncChannel
 from ..sync.control import TrainingControl, TrainingTarget
@@ -295,3 +296,8 @@ class RemoteFrontend:
         if self._link is not None:
             self._link.send("frontend", "screenshot", str(Path(path).expanduser().resolve()))
         return None  # written by the window process, which reports the result
+
+    def view(self, request: ViewRequest) -> str | None:
+        if self._link is not None:
+            self._link.send("frontend", "view", request)
+        return None  # carried out by the window process, which reports the outcome

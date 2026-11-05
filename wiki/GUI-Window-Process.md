@@ -85,6 +85,7 @@ the GUI thread, in the order the messages arrived.
 | `("frontend", "clear", None)` | `window.terminal.clear()` |
 | `("frontend", "close", None)` | closes the window at the next event-loop iteration |
 | `("frontend", "screenshot", path)` | `window.save_screenshot(Path(path))`. The terminal shows `screenshot saved to ...` (success) or `screenshot failed: ...` (error) |
+| `("frontend", "view", request)` | `window.handle_view(request)` ([View Requests](Commands-View)); the outcome, if not empty, is written to the terminal at level `info`, or `error` when refused |
 | `("close",)` | closes the window after `CLOSE_DELAY_MS` |
 | `("disconnected",)` | created locally by the receiving thread when the link reaches EOF. Writes `training process disconnected` (warning) once. The window stays open |
 

@@ -55,7 +55,7 @@ process:
 | `("usage", UsageSample)` | the sampler (`hollywood-training-usage`), every 0.5 s | a CPU, memory and GPU reading for the [Usage Panel](GUI-Usage-Panel) |
 | `("result", ok, text)` | command execution (`hollywood-training-commands`) | the outcome of a command line, shown in the terminal |
 | `("completions", [names])` | start-up, once after `ready` | command names and aliases for Tab completion |
-| `("frontend", action, argument)` | command handlers, through `FrontendActions` | `"clear"` or `"close"` (argument `None`), or `"screenshot"` (an absolute path) |
+| `("frontend", action, argument)` | command handlers, through `FrontendActions` | `"clear"` or `"close"` (argument `None`), `"screenshot"` (an absolute path), or `"view"` (a [`ViewRequest`](Commands-View), carried out by the window) |
 | `("close",)` | `RemoteFrontend.run()` at the end | close the window because the run is over. The window waits 400 ms first |
 
 Window process to training process:

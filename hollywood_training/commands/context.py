@@ -7,7 +7,9 @@ commands. Handlers read the session through
 :class:`~hollywood_training.sync.session.SessionState`, request changes through
 :class:`~hollywood_training.sync.control.TrainingControl`, and anything touching the
 model or optimizer goes through :meth:`CommandContext.submit`, which hands it to the
-training thread (or runs it directly once training has ended).
+training thread (or runs it directly once training has ended). Commands that only change
+the window hand a :class:`~hollywood_training.commands.view.ViewRequest` to
+:meth:`CommandContext.show`.
 """
 
 from __future__ import annotations
@@ -18,6 +20,7 @@ from typing import Protocol
 from ..sync.control import ControlAction, TrainingControl, TrainingTarget
 from ..sync.session import SessionState
 from .registry import CommandError, CommandRegistry
+from .view import ViewRequest
 
 
 class FrontendActions(Protocol):
@@ -29,6 +32,10 @@ class FrontendActions(Protocol):
 
     def screenshot(self, path: Path) -> Path | None:
         """Save a PNG; returns its path, or None when it is written asynchronously."""
+
+    def view(self, request: ViewRequest) -> str | None:
+        """Carry out a window-only request; returns its outcome, or None when the window
+        reports the outcome itself (asynchronously). Raises ``CommandError`` when refused."""
 
 
 class CommandContext:
@@ -79,3 +86,7 @@ class CommandContext:
         if self._frontend is None:
             raise CommandError(f"{feature} is not available in this frontend")
         return self._frontend
+
+    def show(self, request: ViewRequest) -> str:
+        """Hand ``request`` to the window: its outcome, or "" when the window reports it."""
+        return self.require_frontend(request.action).view(request) or ""

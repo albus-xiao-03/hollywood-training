@@ -7,6 +7,7 @@ environment), shows the window and then:
 * applies every received event to its session state and lets the window draw it;
   a synchronous event is acknowledged only **after** the drawing is complete;
 * forwards entered command lines to the training process and shows the replies;
+* carries out window-only command requests (``ViewRequest``) and shows their outcome;
 * tells the training process when the window is closed.
 
 The process imports no torch: everything it receives is plain data.
@@ -106,6 +107,10 @@ class WindowProcess:
             self.window.terminal.clear()
         elif action == "close":
             QTimer.singleShot(0, self.window.close)
+        elif action == "view" and argument is not None:
+            ok, text = self.window.handle_view(argument)
+            if text:
+                self.window.terminal.write(text, "info" if ok else "error")
         elif action == "screenshot" and argument:
             try:
                 saved = self.window.save_screenshot(Path(argument))

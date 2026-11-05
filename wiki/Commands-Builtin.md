@@ -19,7 +19,7 @@ the user-facing reference (usage, output, examples) see [Commands](Commands).
 ## API
 
 ```python
-CATEGORY_ORDER = ("training", "inspection", "session", "custom", "general")
+CATEGORY_ORDER = ("training", "inspection", "view", "session", "custom", "general")
 KEYS = "keys: Tab completes · ↑/↓ history · PgUp/PgDn scroll · Ctrl+Home/End top/bottom"
 
 def builtin_commands() -> list[Command]: ...

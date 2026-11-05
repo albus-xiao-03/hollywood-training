@@ -18,7 +18,8 @@ keeps animating during a long batch.
 * Receive acknowledgements (passed to `SyncChannel.acknowledge`) and command lines
   (passed to `CommandRegistry.execute`, with the result sent back).
 * Sample CPU, memory and GPU usage in the training process, twice a second.
-* Implement `FrontendActions` for the `clear`, `quit` and `screenshot` commands.
+* Implement `FrontendActions` for the `clear`, `quit` and `screenshot` commands and the
+  window-only commands ([View Requests](Commands-View)).
 * End the session cleanly when training finishes, the window is closed, the window
   process dies, or Ctrl+C is pressed.
 
@@ -48,6 +49,7 @@ class RemoteFrontend:
     def clear_output(self) -> None
     def close(self) -> None
     def screenshot(self, path: Path) -> Path | None
+    def view(self, request: ViewRequest) -> str | None
 ```
 
 * The constructor connects the frontend to `channel` as its sink. `registry` executes
@@ -67,6 +69,9 @@ class RemoteFrontend:
   `expanduser()` and `resolve()` applied, and returns `None`. The window process writes
   the file and reports `screenshot saved to ...` or `screenshot failed: ...` in its
   terminal. The `screenshot` command itself answers `screenshot requested: <name>`.
+* `view(request)` sends `("frontend", "view", request)` and returns `None`. The window
+  process carries the request out and writes its outcome into its terminal, so the
+  command's own result is empty.
 
 ## How it works
 

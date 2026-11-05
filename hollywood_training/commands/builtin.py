@@ -38,7 +38,7 @@ from ..sync.events import TrainingState
 from .context import CommandContext
 from .registry import Argument, Command, CommandError, CommandRegistry
 
-CATEGORY_ORDER = ("training", "inspection", "session", "custom", "general")
+CATEGORY_ORDER = ("training", "inspection", "view", "session", "custom", "general")
 KEYS = "keys: Tab completes · ↑/↓ history · PgUp/PgDn scroll · Ctrl+Home/End top/bottom"
 
 

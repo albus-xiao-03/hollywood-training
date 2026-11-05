@@ -13,7 +13,7 @@ without a display.
 ├───────────────┬───────────────────────────────┬──────────────────────────────┤
 │ training      │ commands                      │ frontends                    │
 │  process      │  registry · context · builtin │  gui (window process or      │
-│  manager      │                               │       in-process window)     │
+│  manager      │  view (window-only requests)  │       in-process window)     │
 │  steps …      │                               │  console                     │
 ├───────────────┴───────────────┬───────────────┴──────────────────────────────┤
 │ sync   events · channel · control · pump · session                           │

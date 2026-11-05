@@ -15,6 +15,7 @@ from .registry import (
     CommandResult,
     split_command_line,
 )
+from .view import ViewError, ViewRequest
 
 _LAZY = {
     "builtin_commands": ".builtin",
@@ -29,6 +30,8 @@ __all__ = [
     "CommandRegistry",
     "CommandResult",
     "FrontendActions",
+    "ViewError",
+    "ViewRequest",
     "builtin_commands",
     "create_registry",
     "split_command_line",

@@ -42,6 +42,7 @@
 * [Overview and reference](Commands)
 * [Registry](Commands-Registry)
 * [Context](Commands-Context)
+* [View Requests](Commands-View)
 * [Built-in Commands](Commands-Builtin)
 
 **Monitoring**

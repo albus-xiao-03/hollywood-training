@@ -10,7 +10,8 @@ training process → GUI process         meaning
 ``("usage", UsageSample)``             a CPU / memory / GPU reading
 ``("result", ok, text)``               outcome of a command line
 ``("completions", [names])``           command names for Tab completion
-``("frontend", action, argument)``     ``clear`` / ``close`` / ``screenshot`` (path)
+``("frontend", action, argument)``     ``clear`` / ``close`` / ``screenshot`` (path) /
+                                       ``view`` (a ``ViewRequest``)
 ``("close",)``                         close the window (run is over)
 =====================================  ==================================================
 

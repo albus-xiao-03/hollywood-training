@@ -7,13 +7,15 @@ read access to the session through [`SessionState`](Sync-Session-State), request
 through [`TrainingControl`](Sync-Control), and routes anything that touches the model or
 optimizer through `submit()`, which hands it to the training thread (or runs it directly
 once training has ended). `FrontendActions` describes the optional abilities of the
-frontend that runs the commands.
+frontend that runs the commands. Commands that only change the window hand a
+[`ViewRequest`](Commands-View) to `show()`.
 
 ## Responsibilities
 
 * Bundle the control, the session state, the registry and the frontend for handlers.
 * Keep the model and optimizer out of direct reach: only queued actions receive them.
 * Report frontend features that are not available as a `CommandError`.
+* Pass window-only requests to the frontend (`show()`).
 
 ## API
 
@@ -23,12 +25,15 @@ class FrontendActions(Protocol):
     def close(self) -> None: ...
     def screenshot(self, path: Path) -> Path | None:
         """Save a PNG; returns its path, or None when it is written asynchronously."""
+    def view(self, request: ViewRequest) -> str | None:
+        """Carry out a window-only request; returns its outcome, or None when the window
+        reports the outcome itself (asynchronously). Raises CommandError when refused."""
 ```
 
-| Implementation | `clear_output()` | `close()` | `screenshot(path)` |
-|---|---|---|---|
-| `QtFrontend` ([in-process](GUI-In-Process-Frontend)) | clears the terminal | closes the window (queued with `QTimer.singleShot(0, …)`) | saves synchronously and returns the resolved path; raises `CommandError` on failure |
-| `RemoteFrontend` ([window process](GUI-Remote-Frontend)) | sends `("frontend", "clear", None)` | sends `("frontend", "close", None)` | sends `("frontend", "screenshot", <absolute path>)` and returns `None`; the window reports the result |
+| Implementation | `clear_output()` | `close()` | `screenshot(path)` | `view(request)` |
+|---|---|---|---|---|
+| `QtFrontend` ([in-process](GUI-In-Process-Frontend)) | clears the terminal | closes the window (queued with `QTimer.singleShot(0, …)`) | saves synchronously and returns the resolved path; raises `CommandError` on failure | `window.handle_view(request)`: returns the text, or raises `CommandError` with the window's message |
+| `RemoteFrontend` ([window process](GUI-Remote-Frontend)) | sends `("frontend", "clear", None)` | sends `("frontend", "close", None)` | sends `("frontend", "screenshot", <absolute path>)` and returns `None`; the window reports the result | sends `("frontend", "view", request)` and returns `None`; the window reports the outcome |
 
 ```python
 class CommandContext:
@@ -53,6 +58,7 @@ class CommandContext:
 
     def submit(self, action: ControlAction, description: str) -> str | None: ...
     def require_frontend(self, feature: str) -> FrontendActions: ...
+    def show(self, request: ViewRequest) -> str: ...
 ```
 
 * `submit(action, description)` queues `action` with `control.submit(...)` and returns
@@ -63,6 +69,9 @@ class CommandContext:
   failed result.
 * `require_frontend(feature)` returns the frontend, or raises
   `CommandError(f"{feature} is not available in this frontend")` when there is none.
+* `show(request)` returns `require_frontend(request.action).view(request)`, or `""` when
+  the frontend returns `None` (the window reports the outcome itself). See
+  [View Requests](Commands-View).
 
 The `target` is not exposed as a property; handlers reach it only through `submit()`.
 
@@ -80,8 +89,9 @@ A frontend creates one context per session, with
 ## Used by / uses
 
 * Uses [`TrainingControl`, `TrainingTarget`, `ControlAction`](Sync-Control),
-  [`SessionState`](Sync-Session-State), and `CommandError` / `CommandRegistry` from
-  [Commands Registry](Commands-Registry). It imports no torch.
+  [`SessionState`](Sync-Session-State), `CommandError` / `CommandRegistry` from
+  [Commands Registry](Commands-Registry) and `ViewRequest` from
+  [View Requests](Commands-View). It imports no torch.
 * Created by [GUI Remote Frontend](GUI-Remote-Frontend) and
   [GUI In-Process Frontend](GUI-In-Process-Frontend).
 * Every handler in [Built-in Commands](Commands-Builtin) and every custom command

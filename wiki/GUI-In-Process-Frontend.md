@@ -73,6 +73,7 @@ class QtFrontend:
     def clear_output(self) -> None
     def close(self) -> None
     def screenshot(self, path: Path) -> Path
+    def view(self, request: ViewRequest) -> str
 ```
 
 * The constructor connects the frontend's sink to `channel`. Attributes: `session` (a
@@ -86,6 +87,9 @@ class QtFrontend:
   event-loop iteration.
 * `screenshot(path)` returns `window.save_screenshot(path)`. It raises `CommandError`
   when there is no window or the file cannot be written.
+* `view(request)` returns the text of `window.handle_view(request)` and raises
+  `CommandError` with the window's message when the window refuses the request, or when
+  there is no window ([View Requests](Commands-View)).
 
 ## How it works
 

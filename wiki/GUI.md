@@ -64,7 +64,7 @@ network view, status panel and loss chart read that state whenever they paint.
 ## Two frontends
 
 Both frontends implement the commands' `FrontendActions` (`clear_output`, `close`,
-`screenshot`) and call `ensure_display()` first. Both keep the window open after training
+`screenshot`, and `view` for the window-only commands, see [View Requests](Commands-View)) and call `ensure_display()` first. Both keep the window open after training
 until it is closed, unless `close_on_finish=True` (then it closes 400 ms after the end).
 Closing the window stops training.
 

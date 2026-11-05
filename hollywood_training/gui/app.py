@@ -38,6 +38,7 @@ from PySide6.QtWidgets import QApplication
 
 from ..commands.context import CommandContext
 from ..commands.registry import CommandError, CommandRegistry
+from ..commands.view import ViewRequest
 from ..monitor.system import SystemMonitor
 from ..sync.channel import Envelope, SyncChannel
 from ..sync.control import TrainingControl, TrainingTarget
@@ -249,3 +250,11 @@ class QtFrontend:
             return self.window.save_screenshot(path)
         except OSError as exc:
             raise CommandError(str(exc)) from None
+
+    def view(self, request: ViewRequest) -> str:
+        if self.window is None:
+            raise CommandError("no window")
+        ok, text = self.window.handle_view(request)
+        if not ok:
+            raise CommandError(text)
+        return text

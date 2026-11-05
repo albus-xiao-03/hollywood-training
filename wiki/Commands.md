@@ -15,11 +15,12 @@ complete command reference and custom commands.
 |---|---|---|
 | `registry.py` | [Commands Registry](Commands-Registry) | `Argument`, `Command`, `CommandError`, `CommandResult`, `CommandRegistry`, `split_command_line`: declaration, parsing, dispatch |
 | `context.py` | [Commands Context](Commands-Context) | `CommandContext`, `FrontendActions`: what a handler can see and do |
+| `view.py` | [View Requests](Commands-View) | `ViewRequest`, `ViewError`: commands that only change the window |
 | `builtin.py` | [Built-in Commands](Commands-Builtin) | the built-in commands, `builtin_commands()`, `create_registry(extra)` |
 
-`commands/__init__.py` imports `registry` and `context` eagerly (neither needs torch) and
-exports `Argument`, `Command`, `CommandContext`, `CommandError`, `CommandRegistry`,
-`CommandResult`, `FrontendActions` and `split_command_line`. Only `builtin_commands` and
+`commands/__init__.py` imports `registry`, `context` and `view` eagerly (none needs torch)
+and exports `Argument`, `Command`, `CommandContext`, `CommandError`, `CommandRegistry`,
+`CommandResult`, `FrontendActions`, `ViewError`, `ViewRequest` and `split_command_line`. Only `builtin_commands` and
 `create_registry` (from `builtin`, which imports torch) are listed in an explicit `_LAZY`
 map and imported on first access by a PEP 562 `__getattr__`. The window process therefore
 never loads torch through this package. The top-level package exports `ht.Argument`,
