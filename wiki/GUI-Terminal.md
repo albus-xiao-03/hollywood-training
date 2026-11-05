@@ -17,7 +17,8 @@ every key goes there ([Keyboard Focus](GUI-Keyboard-Focus)).
 
 * Keep a scrolling log, with one colour per message level.
 * Provide a command line with history and command-name completion.
-* Scroll the log from the keyboard (page up / down, top, bottom).
+* Scroll the log from the keyboard (page up / down, top, bottom). Copying text from the log
+  is the `copy` command ([View Actions](GUI-View-Actions)).
 * Consume every key it receives, so that no key travels on to the panels around it.
 * Emit entered lines, and leave their execution to the frontend.
 

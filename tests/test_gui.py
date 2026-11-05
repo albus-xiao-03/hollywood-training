@@ -227,6 +227,7 @@ def test_window_process_commands_and_screenshot(make_process, tmp_path):
             remote._execute("probe 1")
             remote._execute("neuron fc1 2")
             remote._execute("layout chart 50")
+            remote._execute("copy 3")
             remote.screenshot(shot)
 
     manager = TrainingManager(process, channel=channel, control=control, linger=False)

@@ -18,6 +18,7 @@
 ``probe [epoch|off]``   an epoch's values, marked on the loss chart (default: latest)
 ``neuron [col] [n]``    highlight a drawn neuron (``neuron off``; no args: columns)
 ``layout [panel] [%]``  show or set the panel sizes (``layout reset``)
+``copy [lines]``        copy the terminal log (or its last lines) to the clipboard
 ``screenshot [path]``   save a PNG of the window (GUI only)
 ``clear``               clear the terminal (alias: ``cls``)
 ``quit``                stop training and close the window (alias: ``exit``)
@@ -26,9 +27,9 @@
 Commands that change the run are refused once the training session has ended
 (``TrainingControl.closed``); inspection, ``lr`` and ``save`` keep working.
 
-The ``view`` commands (``scale``, ``probe``, ``neuron``, ``layout``, ...) only change the
-window: they replace the mouse interactions of the first version (SPEC R2) and reach the
-window as a :class:`~hollywood_training.commands.view.ViewRequest`.
+The ``view`` commands (``scale``, ``probe``, ``neuron``, ``layout``, ``copy``, ...) only
+change the window: they replace the mouse interactions of the first version (SPEC R2) and
+reach the window as a :class:`~hollywood_training.commands.view.ViewRequest`.
 """
 
 from __future__ import annotations
@@ -333,6 +334,10 @@ def _layout(ctx: CommandContext, panel: str | None, percent: int | None) -> str:
     return ctx.show(ViewRequest("layout", (panel, percent)))
 
 
+def _copy(ctx: CommandContext, lines: int | None) -> str:
+    return ctx.show(ViewRequest("copy", (lines,)))
+
+
 def _probe_report(record, session) -> str:
     best = session.best_record()
     title = f"epoch {record.epoch} of {session.total_epochs}"
@@ -502,6 +507,11 @@ def builtin_commands() -> list[Command]:
             category="view",
             details="Panels: left, right (the two columns); network, terminal (left column);\n"
             "status, chart, usage (right column). Minimum sizes still apply.",
+        ),
+        Command(
+            "copy", "copy the terminal log to the clipboard", _copy,
+            arguments=(Argument("lines", _positive_int, "lines from the end (default all)", True),),
+            category="view",
         ),
         Command(
             "save", "save the model's state_dict", _save,

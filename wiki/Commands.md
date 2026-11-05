@@ -84,6 +84,7 @@ error log line `<description> failed: <Type>: <message>` appears.
 | `probe [epoch]` | | show an epoch's values and mark it on the loss chart |
 | `neuron [column] [index]` | | highlight a neuron on the network view |
 | `layout [panel] [percent]` | | show or change the panel sizes |
+| `copy [lines]` | | copy the terminal log to the clipboard |
 | `save <path>` | | save the model's `state_dict` |
 | `screenshot [path]` | | save a PNG of the window |
 | `clear` | `cls` | clear the terminal |
@@ -271,6 +272,11 @@ right column  status 34% · chart 50% · usage 16%
 
 Fails with `no panel 'x' - panels: …`, `invalid percent '0': must be a whole number from
 1 to 99` and `'layout reset' takes no percentage`.
+
+**`copy [lines]`** copies the terminal log to the clipboard: all of it, or its last
+`lines` lines. The echo of the `copy` command itself is left out. Output:
+`copied 12 lines to the clipboard`, or `nothing to copy: the log is empty`. The clipboard
+is the window's: on X11 without a clipboard manager, paste before closing the window.
 
 ### Session
 

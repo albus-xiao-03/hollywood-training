@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 import torch
 from PySide6.QtCore import QTimer
+from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QApplication
 from torch import nn
 
@@ -418,3 +419,30 @@ def test_layout_refusals(roomy):
         result = run(roomy, line)
         assert not result.ok and result.output == message, line
     assert run(roomy, "layout CHART 40").ok  # panel names ignore case
+
+
+# ------------------------------------------------------------------------- copy
+def test_copy_puts_the_log_on_the_clipboard(gui):
+    terminal = gui.window.terminal
+    terminal.clear()
+    for line in ("alpha", "beta", "gamma"):
+        terminal.write(line)
+    terminal.echo("copy 2")  # typed in the terminal: echoed before the command runs
+    answer = run(gui, "copy 2").output
+    assert answer == "copied 2 lines to the clipboard"
+    assert QGuiApplication.clipboard().text() == "beta\ngamma"  # without the echo
+    terminal.write(answer)  # the window shows the answer
+    terminal.echo("copy")
+    assert run(gui, "copy").output == "copied 5 lines to the clipboard"
+    copied = QGuiApplication.clipboard().text().splitlines()
+    assert copied == ["alpha", "beta", "gamma", "ht ❯ copy 2", answer]  # earlier echoes stay
+    terminal.write("one more line")
+    assert run(gui, "copy 1").output == "copied 1 line to the clipboard"
+    assert QGuiApplication.clipboard().text() == "one more line"
+
+
+def test_copy_refusals(gui):
+    gui.window.terminal.clear()
+    assert run(gui, "copy").output == "nothing to copy: the log is empty"
+    result = run(gui, "copy 0")
+    assert not result.ok and result.output == "invalid lines '0': must be a positive integer"

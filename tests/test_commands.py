@@ -150,6 +150,7 @@ def test_help_and_frontend_only_commands(context):
     assert run(context, "probe").output == "probe is not available in this frontend"
     assert run(context, "neuron").output == "neuron is not available in this frontend"
     assert run(context, "layout").output == "layout is not available in this frontend"
+    assert run(context, "copy").output == "copy is not available in this frontend"
 
 
 def test_custom_commands_from_the_process(make_process):

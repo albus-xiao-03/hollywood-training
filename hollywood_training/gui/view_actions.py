@@ -16,8 +16,10 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 import numpy as np
+from PySide6.QtGui import QGuiApplication
 
 from ..commands.view import ViewError, ViewRequest
+from .widgets.terminal import PROMPT
 
 if TYPE_CHECKING:
     from .widgets.network_view import Column
@@ -40,6 +42,7 @@ class ViewActions:
             "probe": self.probe,
             "neuron": self.neuron,
             "layout": self.layout,
+            "copy": self.copy,
         }
 
     @property
@@ -142,6 +145,20 @@ class ViewActions:
         if abs(shares[panel] - percent) > 1:
             line += " (limited by the panels' minimum sizes)"
         return line
+
+    # ---------------------------------------------------------------- terminal
+    def copy(self, lines: int | None) -> str:
+        """``copy [lines]``: the log, or its last lines, to the clipboard (replaces selecting
+        text with the mouse). The echo of this ``copy`` command is left out."""
+        text = self._window.terminal.text().splitlines()
+        if text and (text[-1] == f"{PROMPT} copy" or text[-1].startswith(f"{PROMPT} copy ")):
+            text.pop()
+        if lines is not None:
+            text = text[-lines:]
+        if not text:
+            return "nothing to copy: the log is empty"
+        QGuiApplication.clipboard().setText("\n".join(text))
+        return f"copied {len(text)} line{'s' if len(text) != 1 else ''} to the clipboard"
 
     def _shares(self) -> str:
         width = max(len(label) for label in SPLIT_LABELS.values())
