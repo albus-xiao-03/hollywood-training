@@ -14,6 +14,9 @@ synchronously; it runs while the training loop waits for an epoch's hand-off.
 The window does not execute commands itself: an entered line is echoed and emitted as
 :attr:`MainWindow.command_submitted`; the frontend runs it wherever the training objects
 live and hands the outcome back with :meth:`MainWindow.show_command_result`.
+
+While the window is active, every key goes to the terminal's command line
+(:class:`~hollywood_training.gui.keyboard_focus.KeyboardFocus`).
 """
 
 from __future__ import annotations
@@ -39,6 +42,7 @@ from ..sync.events import (
 )
 from ..sync.session import SessionState
 from .animation import AnimationClock
+from .keyboard_focus import KeyboardFocus
 from .theme import PALETTE, app_icon, color, stylesheet
 from .widgets import HeaderBar, LossChart, NetworkView, StatusPanel, TerminalPanel, UsagePanel
 
@@ -139,6 +143,7 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(960, 680)
         self._fit_to_screen()
         self.clock.start()
+        self.keyboard = KeyboardFocus(self, self.terminal.input)
         self.terminal.input.setFocus()
 
     @staticmethod

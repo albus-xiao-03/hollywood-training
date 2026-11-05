@@ -9,10 +9,14 @@ panel only collects input and shows text. Entered lines leave through the
 [command registry](Commands-Registry) and writes the outcome back. The commands are
 listed on the [Commands](Commands) page.
 
+The command line is the window's only keyboard focus target: while the window is active,
+every key goes there ([Keyboard Focus](GUI-Keyboard-Focus)).
+
 ## Responsibilities
 
 * Keep a scrolling log, with one colour per message level.
 * Provide a command line with history and command-name completion.
+* Consume every key it receives, so that no key travels on to the panels around it.
 * Emit entered lines, and leave their execution to the frontend.
 
 ## API
@@ -55,6 +59,9 @@ class CommandLine(QLineEdit):
 * `history` returns a copy of the entered lines. A line equal to the one before it is not
   stored twice.
 * `complete()` does what Tab does (see below).
+* Every key press and release is accepted after it was handled, including keys the line
+  has no use for. Unhandled keys therefore never travel up to the parent panels, which
+  [Keyboard Focus](GUI-Keyboard-Focus) relies on to forward stray keys without loops.
 
 ```python
 class TerminalPanel(HudPanel):
@@ -89,6 +96,8 @@ class TerminalPanel(HudPanel):
 | Up | shows the previous history entry |
 | Down | shows the next entry, or an empty line after the newest |
 | Tab | runs `complete()` instead of moving the focus |
+| Shift+Tab | does nothing (the focus never leaves the command line) |
+| any other key | normal line editing (arrows, Home / End, Shift+arrows to select, Ctrl+A / C / X / V / Z); keys without a meaning are consumed |
 
 `complete()` only acts on a single word (a line without spaces). With one match, the line
 becomes `<match> ` with a trailing space. With several matches, the line is extended to
@@ -117,6 +126,8 @@ and `error` for states, log messages and failures, and `command` for echoed line
 * Used by the [Main Window](GUI-Main-Window) as `window.terminal`. Both frontends also
   call `terminal.clear()` for the `clear` command, and the window process writes
   screenshot and disconnect messages into it.
+* [Keyboard Focus](GUI-Keyboard-Focus) keeps the focus on `terminal.input` and forwards
+  keys addressed to other widgets to it.
 * Uses [HUD Panel](GUI-HUD-Panel) and [Theme](GUI-Theme) (`PALETTE`, `color`,
   `mono_font`). The object names `terminalOutput`, `terminalInput` and `terminalPrompt`
   are styled by `stylesheet()`.

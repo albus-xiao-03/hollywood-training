@@ -48,7 +48,7 @@ How the SPEC's "GUI Layout" requirements map to the panels:
 | 2 | total and current epoch, batch size, learning rate, loss function, optimizer, normalization strategy, progress bar, process timer | [Status Panel](GUI-Status-Panel) | `EPOCH 077/300` counter, `PROCESS TIMER`, `RUN` (epochs) and `BATCH` progress bars, ETA, rows `BATCH SIZE`, `LEARNING RATE`, `LOSS FUNCTION`, `OPTIMIZER`, `NORMALIZATION`, plus scheduler, device, losses, metrics, best epoch, epoch time, parameters, epoch delay |
 | 3 | training and validation loss, drawn dynamically every epoch | [Loss Chart](GUI-Loss-Chart) | cyan training curve over a filled area, dashed indigo validation curve, both extended at each `EpochCompleted`; the x axis spans all requested epochs |
 | 4 | memory, CPU and GPU usage (GPU when applicable) | [Usage Panel](GUI-Usage-Panel) | `CPU` and `MEM` rows for the machine and the training process; `GPU` / `VRAM` rows only when the reading contains a GPU; a 60 s CPU sparkline |
-| 5 | integrated terminal for the runtime commands | [Terminal](GUI-Terminal) | command line with history (Up / Down) and Tab completion; lines run in the training process through the [command registry](Commands) |
+| 5 | integrated terminal for the runtime commands | [Terminal](GUI-Terminal) | command line with history (Up / Down) and Tab completion; every key typed in the window goes there ([Keyboard Focus](GUI-Keyboard-Focus)); lines run in the training process through the [command registry](Commands) |
 | 6 | the network's class name | [Header](GUI-Header) | `SessionInfo.network_class` in large glowing letters under `TRAINING NETWORK`; also in the window title and the terminal banner |
 | 7 | blue based | [Theme](GUI-Theme) | `Palette`: blue and cyan tones, indigo for negative values, plus status accents |
 
@@ -138,6 +138,7 @@ import the GUI at all.
 | Module | Page | Contents |
 |---|---|---|
 | `gui/window.py` | [Main Window](GUI-Main-Window) | `MainWindow`, `Backdrop`: layout, event routing, synchronous repaint |
+| `gui/keyboard_focus.py` | [Keyboard Focus](GUI-Keyboard-Focus) | `KeyboardFocus`: every key typed in the active window goes to the command line |
 | `gui/remote.py` | [Remote Frontend](GUI-Remote-Frontend) | `RemoteFrontend`: the default frontend, training-process side |
 | `gui/window_process.py` | [Window Process](GUI-Window-Process) | the child process: `WindowProcess`, `main()` |
 | `gui/link.py` | [Link Protocol](GUI-Link-Protocol) | `Link` and the message tuples in both directions |

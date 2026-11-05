@@ -16,6 +16,8 @@ frontend owns it. Both frontends use it unchanged: the
   plus a synchronous repaint (`render_now()`) for every synchronous event.
 * Echo entered command lines, emit them as `command_submitted`, and print results handed
   back through `show_command_result()`.
+* Route the keyboard to the terminal: `keyboard`, a [Keyboard Focus](GUI-Keyboard-Focus)
+  lock, sends every key typed while the window is active to the command line.
 * Save screenshots, and emit `closing` when the window is closed.
 
 ## API
@@ -71,7 +73,8 @@ class MainWindow(QMainWindow):
   and the panels `header` ([Header](GUI-Header)), `network`
   ([Network View](GUI-Network-View)), `terminal` ([Terminal](GUI-Terminal)), `status`
   ([Status Panel](GUI-Status-Panel)), `chart` ([Loss Chart](GUI-Loss-Chart)) and `usage`
-  ([Usage Panel](GUI-Usage-Panel)).
+  ([Usage Panel](GUI-Usage-Panel)), plus `keyboard`
+  ([Keyboard Focus](GUI-Keyboard-Focus)), created after the panels.
 
 | Member | Behaviour |
 |---|---|
@@ -99,7 +102,8 @@ The backdrop's vertical layout (margins 14/8/14/14 px, spacing 6 px) holds the 8
 header above the main splitter. The minimum size is 960 × 680. At construction the window
 takes 88 % of the screen's available area, clamped to between 960 × 680 and
 1680 × 1020 and to the available area, and centres itself. Without a screen it uses
-1500 × 920. Focus starts in the terminal's command line.
+1500 × 920. The terminal's command line holds the keyboard focus and is the window's only
+focus target ([Keyboard Focus](GUI-Keyboard-Focus)).
 
 **Events.** `apply()` handles each event type as follows:
 
@@ -128,8 +132,9 @@ show_command_result(ok, output) ◀───────────────
 * Used by `QtFrontend` ([In-Process Frontend](GUI-In-Process-Frontend)) with
   `completer=registry.complete`, and by `WindowProcess` ([Window Process](GUI-Window-Process))
   with the command names received over the link.
-* Uses the panels in `gui.widgets`, [Theme](GUI-Theme) (`PALETTE`, `color`,
-  `stylesheet`, `app_icon`), [Animation](GUI-Animation), [Formatting](Formatting)
+* Uses the panels in `gui.widgets`, [Keyboard Focus](GUI-Keyboard-Focus),
+  [Theme](GUI-Theme) (`PALETTE`, `color`, `stylesheet`, `app_icon`),
+  [Animation](GUI-Animation), [Formatting](Formatting)
   (`epoch_summary`, `duration`, `count`), [Sync Events](Sync-Events) and
   [Session State](Sync-Session-State).
 

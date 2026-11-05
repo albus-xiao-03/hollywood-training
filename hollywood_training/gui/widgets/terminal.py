@@ -4,6 +4,10 @@ An output log plus a command line with history (Up / Down) and Tab completion of
 names. Entered lines are emitted as :attr:`TerminalPanel.command_entered`; the main window
 echoes them and passes them on to its frontend, which executes them and writes the result
 back with :meth:`TerminalPanel.write`.
+
+The command line is the window's only keyboard focus target
+(:mod:`~hollywood_training.gui.keyboard_focus`): Tab and Shift+Tab never move the focus,
+and it consumes every key, so no key travels on to the panels around it.
 """
 
 from __future__ import annotations
@@ -79,9 +83,14 @@ class CommandLine(QLineEdit):
         self.submitted.emit(text)
 
     def event(self, event) -> bool:
-        # Tab normally moves focus; here it completes the command name.
-        if event.type() == QEvent.Type.KeyPress and event.key() == Qt.Key.Key_Tab:
-            self.complete()
+        # Tab and Shift+Tab normally move the focus. Here Tab completes the command name and
+        # Shift+Tab does nothing: the command line is the window's only focus target.
+        if event.type() == QEvent.Type.KeyPress and event.key() in (
+            Qt.Key.Key_Tab,
+            Qt.Key.Key_Backtab,
+        ):
+            if event.key() == Qt.Key.Key_Tab:
+                self.complete()
             return True
         return super().event(event)
 
@@ -94,6 +103,11 @@ class CommandLine(QLineEdit):
             self.setText(self._history[self._cursor] if self._cursor < len(self._history) else "")
         else:
             super().keyPressEvent(event)
+        event.accept()  # consumed here: keys never travel on to the panels
+
+    def keyReleaseEvent(self, event) -> None:
+        super().keyReleaseEvent(event)
+        event.accept()
 
     def complete(self) -> None:
         text = self.text()
