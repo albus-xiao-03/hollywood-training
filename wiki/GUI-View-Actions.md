@@ -36,6 +36,7 @@ class ViewActions:
     def neuron(self, column: str | None, index: int | None) -> str
     def layout(self, panel: str | None, percent: int | None) -> str
     def copy(self, lines: int | None) -> str
+    def window(self, mode: str | None) -> str
 ```
 
 * `names`: the registered action names, sorted.
@@ -52,6 +53,7 @@ class ViewActions:
 |---|---|---|---|
 | `scale` | `scale [lin\|log]` | `scale(mode)` | `chart.set_log_scale(...)`: `log` / `lin`, or the opposite of the current scale for `None`. Answers `loss axis: linear` or `loss axis: logarithmic`, plus `(drawn linear until a loss is positive)` when `chart.has_positive_loss()` is false |
 | `copy` | `copy [lines]` | `copy(lines)` | Puts the terminal log (`terminal.text()`), or its last `lines` lines, on the clipboard (`QGuiApplication.clipboard()`). The log's last line is left out when it is the echo of this `copy` command (`ht ❯ copy …`), which is written before the command runs. Answers `copied <n> lines to the clipboard` (`1 line`), or `nothing to copy: the log is empty` |
+| `window` | `window [normal\|max\|full\|min]` | `window(mode)` | `showNormal()`, `showMaximized()`, `showFullScreen()` or `showMinimized()` on the window, then answers the window's state: `window: normal (<width> × <height>)`, `window: maximized`, `window: full screen` or `window: minimized`. Without a mode it only answers |
 | `layout` | `layout [panel] [percent]`, `layout reset` | `layout(panel, percent)` | No arguments: every panel's share, one line per splitter (`columns  left 62% · right 38%`, `left column  network 70% · terminal 30%`, `right column  status 44% · chart 36% · usage 20%`) and a usage hint. A panel only: `<panel>: <share>% of the right column`. A panel and a percentage: `window.set_panel_share(...)`, answering the new shares of that splitter, plus `(limited by the panels' minimum sizes)` when the panel's share ends up more than 1 point off. `reset`: `window.reset_layout()`, answering `layout reset` and the shares. Panel names ignore case. Refuses `no panel 'x' - panels: …` and `'layout reset' takes no percentage` |
 | `neuron` | `neuron [column] [index]`, `neuron off` | `neuron(column, index)` | No arguments: lists the drawn columns (`drawn columns ('neuron <column> <index>' highlights a neuron):`, then one line per column with its title, caption and drawn neuron indices, e.g. `neurons 0-5` or `neurons 0 … 39 (8 drawn)`). A column only: `<COLUMN> · drawn neurons 0, 6, 11-12, …`. A column and an index: `network.select_neuron(...)`, answering `network.neuron_lines(...)`. `off`: removes the highlight (`neuron highlight removed`, or `no neuron highlighted`). Refuses `no network drawn yet`, `no column 'x' - columns: …`, `<COLUMN> has no drawn neuron n - drawn: …` |
 | `probe` | `probe [epoch\|off]` | `probe(epoch)` | `chart.set_probe(epoch)` for an epoch, answering nothing (the command reports the epoch's values). For `None` (`probe off`): removes the line and answers `probe line removed`, or `no probe line to remove` |

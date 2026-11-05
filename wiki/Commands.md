@@ -85,6 +85,7 @@ error log line `<description> failed: <Type>: <message>` appears.
 | `neuron [column] [index]` | | highlight a neuron on the network view |
 | `layout [panel] [percent]` | | show or change the panel sizes |
 | `copy [lines]` | | copy the terminal log to the clipboard |
+| `window [mode]` | | show or change the window mode |
 | `save <path>` | | save the model's `state_dict` |
 | `screenshot [path]` | | save a PNG of the window |
 | `clear` | `cls` | clear the terminal |
@@ -277,6 +278,13 @@ Fails with `no panel 'x' - panels: …`, `invalid percent '0': must be a whole n
 `lines` lines. The echo of the `copy` command itself is left out. Output:
 `copied 12 lines to the clipboard`, or `nothing to copy: the log is empty`. The clipboard
 is the window's: on X11 without a clipboard manager, paste before closing the window.
+
+**`window [normal|max|full|min]`** changes the window mode from the keyboard: `max`
+maximizes it, `full` fills the screen without a title bar, `min` minimizes it (bring it
+back with the system's window switcher, e.g. Alt+Tab), and `normal` restores it. Without
+an argument it shows the current mode. Output: `window: maximized`, `window: full screen`,
+`window: minimized` or `window: normal (1500 × 920)`. The title bar and the system's own
+window shortcuts keep working as well.
 
 ### Session
 

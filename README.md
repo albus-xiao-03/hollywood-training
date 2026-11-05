@@ -130,6 +130,7 @@ column, and statistics always cover the full tensors.
 | `history [n]` · `arch` · `weights [layer]` | inspect epochs, architecture, weights |
 | `scale [lin\|log]` | loss chart axis: linear or logarithmic (switches without an argument) |
 | `copy [lines]` | copy the terminal log (or its last lines) to the clipboard |
+| `window [normal\|max\|full\|min]` | window mode from the keyboard (`full`: full screen) |
 | `layout [panel] [percent]` | show or change the panel sizes, e.g. `layout chart 50`; `layout reset` restores them |
 | `neuron [column] [index]` | highlight a neuron and show its index, label and bias (`neuron` lists the columns, `neuron off` removes it) |
 | `probe [epoch\|off]` | an epoch's values (default: the latest), marked on the loss chart by a vertical line with its losses; the line goes away when training continues, or with `probe off` |

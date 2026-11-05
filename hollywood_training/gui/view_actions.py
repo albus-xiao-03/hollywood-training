@@ -16,6 +16,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 import numpy as np
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QGuiApplication
 
 from ..commands.view import ViewError, ViewRequest
@@ -43,6 +44,7 @@ class ViewActions:
             "neuron": self.neuron,
             "layout": self.layout,
             "copy": self.copy,
+            "window": self.window,
         }
 
     @property
@@ -159,6 +161,28 @@ class ViewActions:
             return "nothing to copy: the log is empty"
         QGuiApplication.clipboard().setText("\n".join(text))
         return f"copied {len(text)} line{'s' if len(text) != 1 else ''} to the clipboard"
+
+    # ------------------------------------------------------------------ window
+    def window(self, mode: str | None) -> str:
+        """``window [normal|max|full|min]``: the window's mode (a keyboard alternative to
+        the title bar's buttons). Without an argument: the current mode."""
+        window = self._window
+        if mode is not None:
+            show = {
+                "normal": window.showNormal,
+                "max": window.showMaximized,
+                "full": window.showFullScreen,
+                "min": window.showMinimized,
+            }
+            show[mode]()
+        state = window.windowState()
+        if state & Qt.WindowState.WindowMinimized:
+            return "window: minimized"
+        if state & Qt.WindowState.WindowFullScreen:
+            return "window: full screen"
+        if state & Qt.WindowState.WindowMaximized:
+            return "window: maximized"
+        return f"window: normal ({window.width()} × {window.height()})"
 
     def _shares(self) -> str:
         width = max(len(label) for label in SPLIT_LABELS.values())

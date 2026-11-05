@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 import torch
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QApplication
 from torch import nn
@@ -446,3 +446,19 @@ def test_copy_refusals(gui):
     assert run(gui, "copy").output == "nothing to copy: the log is empty"
     result = run(gui, "copy 0")
     assert not result.ok and result.output == "invalid lines '0': must be a positive integer"
+
+
+# ----------------------------------------------------------------------- window
+def test_window_shows_and_changes_the_window_mode(gui, qtbot):
+    window = gui.window
+    assert run(gui, "window").output == f"window: normal ({window.width()} × {window.height()})"
+    assert run(gui, "window max").output == "window: maximized"
+    assert window.windowState() & Qt.WindowState.WindowMaximized
+    assert run(gui, "window full").output == "window: full screen"
+    assert window.isFullScreen()
+    assert run(gui, "window normal").output.startswith("window: normal (")
+    assert not window.isFullScreen() and not window.isMaximized()
+    assert run(gui, "window min").output == "window: minimized"
+    assert window.isMinimized()
+    result = run(gui, "window huge")
+    assert not result.ok and result.output == "mode must be one of: normal, max, full, min"

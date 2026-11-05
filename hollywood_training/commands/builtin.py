@@ -19,6 +19,7 @@
 ``neuron [col] [n]``    highlight a drawn neuron (``neuron off``; no args: columns)
 ``layout [panel] [%]``  show or set the panel sizes (``layout reset``)
 ``copy [lines]``        copy the terminal log (or its last lines) to the clipboard
+``window [mode]``       window mode: normal, max, full (screen) or min
 ``screenshot [path]``   save a PNG of the window (GUI only)
 ``clear``               clear the terminal (alias: ``cls``)
 ``quit``                stop training and close the window (alias: ``exit``)
@@ -27,9 +28,9 @@
 Commands that change the run are refused once the training session has ended
 (``TrainingControl.closed``); inspection, ``lr`` and ``save`` keep working.
 
-The ``view`` commands (``scale``, ``probe``, ``neuron``, ``layout``, ``copy``, ...) only
-change the window: they replace the mouse interactions of the first version (SPEC R2) and
-reach the window as a :class:`~hollywood_training.commands.view.ViewRequest`.
+The ``view`` commands (``scale``, ``probe``, ``neuron``, ``layout``, ``copy``, ``window``)
+only change the window: they replace the mouse interactions of the first version (SPEC R2)
+and reach the window as a :class:`~hollywood_training.commands.view.ViewRequest`.
 """
 
 from __future__ import annotations
@@ -338,6 +339,10 @@ def _copy(ctx: CommandContext, lines: int | None) -> str:
     return ctx.show(ViewRequest("copy", (lines,)))
 
 
+def _window(ctx: CommandContext, mode: str | None) -> str:
+    return ctx.show(ViewRequest("window", (mode,)))
+
+
 def _probe_report(record, session) -> str:
     best = session.best_record()
     title = f"epoch {record.epoch} of {session.total_epochs}"
@@ -512,6 +517,17 @@ def builtin_commands() -> list[Command]:
             "copy", "copy the terminal log to the clipboard", _copy,
             arguments=(Argument("lines", _positive_int, "lines from the end (default all)", True),),
             category="view",
+        ),
+        Command(
+            "window", "show or change the window mode", _window,
+            arguments=(
+                Argument(
+                    "mode", str, "normal, max, full or min", True,
+                    choices=("normal", "max", "full", "min"),
+                ),
+            ),
+            category="view",
+            details="'window full' fills the screen without a title bar; 'window normal' returns.",
         ),
         Command(
             "save", "save the model's state_dict", _save,

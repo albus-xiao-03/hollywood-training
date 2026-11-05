@@ -69,6 +69,7 @@ training process for the window process, the GUI (main) thread for the in-proces
 | `weights` | `_weights` | unknown layer → `CommandError` | formats `session.weights` | handler thread |
 | `probe` | `_probe` | no history → `no completed epochs yet`; an epoch not in `session.history` → `epoch <n> has not completed yet (last completed: <last>)` | `ctx.show(ViewRequest("probe", (epoch,)))`, then formats the record (`_probe_report`), plus a note while the session is `RUNNING` that the line clears at the next epoch; `off` → `ctx.show(ViewRequest("probe", (None,)))` | handler thread, then the window |
 | `copy` | `_copy` | converter only | `ctx.show(ViewRequest("copy", (lines,)))` | handler thread, then the window |
+| `window` | `_window` | `mode` choices `normal`, `max`, `full`, `min` | `ctx.show(ViewRequest("window", (mode,)))` | handler thread, then the window |
 | `layout` | `_layout` | converter only; the window checks the panel name | `ctx.show(ViewRequest("layout", (panel, percent)))` | handler thread, then the window |
 | `neuron` | `_neuron` | converters only; the window checks the column and the index | `ctx.show(ViewRequest("neuron", (column, index)))` | handler thread, then the window |
 | `scale` | `_scale` | `mode` choices `lin`, `log` | `ctx.show(ViewRequest("scale", (mode,)))` | handler thread, then the window |
