@@ -108,7 +108,7 @@ tracked with default settings.
 | Header | the network's **class name**, display name, parameter count, state, device |
 | Neural architecture | neurons and connections of every layer, drawn from the **real weights** (cyan positive, indigo negative, brightness by magnitude, white-hot for the biggest last-epoch changes), neuron bias, activation / normalisation badges, signals flowing along strong weights |
 | Training status | current / total epoch, progress bars, **process timer**, ETA, batch size, learning rate, loss function, optimizer, normalisation strategy, scheduler, device, losses, metrics, best epoch |
-| Loss | training and validation loss, extended after every epoch (click: log scale) |
+| Loss | training and validation loss, extended after every epoch (`scale` or a click: log scale) |
 | System usage | CPU and memory of the machine and the process, plus GPU when training runs on one |
 | Command terminal | the commands below, with history (↑/↓), Tab completion and PgUp/PgDn (Ctrl+Home/End) to scroll the log; everything you type in the window goes here |
 
@@ -128,6 +128,7 @@ column, and statistics always cover the full tensors.
 | `lr <value>` | set the learning rate of every parameter group |
 | `delay <ms>` | wait after every epoch (`delay 0` = full speed) |
 | `history [n]` · `arch` · `weights [layer]` | inspect epochs, architecture, weights |
+| `scale [lin\|log]` | loss chart axis: linear or logarithmic (switches without an argument) |
 | `save <path>` | `torch.save(model.state_dict(), path)` |
 | `screenshot [path]` · `clear` · `quit` | save a PNG of the window · clear the terminal · stop and close |
 

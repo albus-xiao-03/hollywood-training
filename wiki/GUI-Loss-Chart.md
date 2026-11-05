@@ -6,8 +6,8 @@
 Its x axis spans all requested epochs, so the curves grow toward the right edge as the
 run progresses. Axes, grid and curves are rendered into a cached pixmap when a new epoch
 arrives, which happens during the synchronous hand-off. Pulsing markers at the newest
-points and the hover read-out are drawn on top every frame. A click switches the loss
-axis between linear and logarithmic.
+points and the hover read-out are drawn on top every frame. The `scale` command (or a
+click) switches the loss axis between linear and logarithmic.
 
 ## Responsibilities
 
@@ -65,11 +65,15 @@ class LossChart(HudPanel):
     @property
     def log_scale(self) -> bool
     def set_log_scale(self, enabled: bool) -> None
+    def has_positive_loss(self) -> bool
 ```
 
 The chart draws `session.history`. Its title is "Loss", its minimum size 320 × 200. It
 has a cross cursor and the tooltip `Click: switch between linear and logarithmic scale`.
-`set_log_scale()` invalidates the cache and schedules a repaint. The attribute
+`set_log_scale()` invalidates the cache and schedules a repaint; the `scale` command
+calls it ([Main Window](GUI-Main-Window)). `has_positive_loss()` tells whether a
+logarithmic axis can be drawn: some training or validation loss is finite and above 0.
+The attribute
 `last_painted_epoch: int | None` holds the epoch of the last history record at the
 latest paint.
 
@@ -110,7 +114,8 @@ training and validation points. While the mouse is inside the plot, a dashed ver
 line marks the nearest recorded epoch, with a box showing `EPOCH n`, `TRAIN ...` and
 `VAL ...`.
 
-**Interaction.** A left click toggles the log scale. Moving the mouse sets the hover
+**Interaction.** The `scale [lin|log]` command sets the log scale, or toggles it without
+an argument. A left click toggles it too. Moving the mouse sets the hover
 point, and leaving the widget clears it. A resize clears the cache key.
 
 ## Used by / uses
@@ -128,7 +133,7 @@ point, and leaving the widget clears it. A resize clears the cache key.
 from hollywood_training.gui.widgets import nice_ticks
 
 chart = window.chart          # the LossChart of a MainWindow
-chart.set_log_scale(True)     # the same as clicking the chart
+chart.set_log_scale(True)     # what `scale log` does
 assert chart.log_scale
 
 nice_ticks(1, 400, 6)         # [50, 100, 150, 200, 250, 300, 350, 400]: the x ticks of a 400-epoch run

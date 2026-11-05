@@ -147,7 +147,7 @@ class MainWindow(QMainWindow):
         self.clock.start()
         self.keyboard = KeyboardFocus(self, self.terminal.input)
         self.terminal.input.setFocus()
-        self._view_actions: dict[str, Callable[..., str]] = {}
+        self._view_actions: dict[str, Callable[..., str]] = {"scale": self._view_scale}
 
     @staticmethod
     def _splitter(orientation, widgets: list[QWidget], shares: list[int]) -> QSplitter:
@@ -260,6 +260,17 @@ class MainWindow(QMainWindow):
             return True, handler(*request.arguments)
         except ViewError as exc:
             return False, str(exc)
+
+    # ------------------------------------------------------- window-only actions
+    def _view_scale(self, mode: str | None) -> str:
+        """``scale [lin|log]``: the loss axis (replaces clicking the chart)."""
+        log = not self.chart.log_scale if mode is None else mode == "log"
+        self.chart.set_log_scale(log)
+        if not log:
+            return "loss axis: linear"
+        if self.chart.has_positive_loss():
+            return "loss axis: logarithmic"
+        return "loss axis: logarithmic (drawn linear until a loss is positive)"
 
     def save_screenshot(self, path: Path) -> Path:
         path = Path(path)

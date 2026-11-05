@@ -80,6 +80,7 @@ error log line `<description> failed: <Type>: <message>` appears.
 | `history [count]` | | show the last epochs (default 10) |
 | `arch` | `layers`, `architecture` | show the tracked architecture |
 | `weights [layer]` | | show weight statistics |
+| `scale [mode]` | | switch the loss axis between linear and logarithmic |
 | `save <path>` | | save the model's `state_dict` |
 | `screenshot [path]` | | save a PNG of the window |
 | `clear` | `cls` | clear the terminal |
@@ -189,6 +190,18 @@ fc1 after epoch 1
   bias mean   -0.11755 (drawn neurons)
 ```
 
+### View
+
+Window-only commands. They change only the window (they replace the mouse interactions
+of the first version, SPEC R2) and need a window: without one they fail with
+`<command> is not available in this frontend`. With the window process, the window writes
+the answer ([View Requests](Commands-View)).
+
+**`scale [lin|log]`** sets the loss chart's y axis to linear or logarithmic; without an
+argument it switches to the other one. Output: `loss axis: logarithmic` or
+`loss axis: linear`. A logarithmic axis needs a positive loss; until there is one the
+chart stays linear and the output adds `(drawn linear until a loss is positive)`.
+
 ### Session
 
 **`save <path>`** runs `torch.save(model.state_dict(), path)` on the training thread at the
@@ -212,7 +225,7 @@ answers `screenshot saved to <path>`. With the window process the output is
 ### General
 
 **`help [command]`** (`?`) without an argument lists every command, grouped as TRAINING,
-INSPECTION, SESSION, CUSTOM, GENERAL (other categories follow alphabetically). With a
+INSPECTION, VIEW, SESSION, CUSTOM, GENERAL (other categories follow alphabetically). With a
 command name or alias it shows the usage, summary, details, arguments with defaults and
 aliases:
 

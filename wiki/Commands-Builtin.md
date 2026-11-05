@@ -64,6 +64,7 @@ training process for the window process, the GUI (main) thread for the in-proces
 | `history` | `_history` | | formats `session.history[-count:]` | handler thread |
 | `arch` | `_architecture` | | formats `session.architecture` | handler thread |
 | `weights` | `_weights` | unknown layer → `CommandError` | formats `session.weights` | handler thread |
+| `scale` | `_scale` | `mode` choices `lin`, `log` | `ctx.show(ViewRequest("scale", (mode,)))` | handler thread, then the window |
 | `save` | `_save` | | `submit(save, "save weights to <path>")` | **training thread** |
 | `screenshot` | `_screenshot` | `require_frontend("screenshot")` | `frontend.screenshot(path)` | handler thread, then the window |
 | `clear` | `_clear` | `require_frontend("clear")` | `frontend.clear_output()` | handler thread |

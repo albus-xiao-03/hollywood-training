@@ -127,6 +127,12 @@ class LossChart(HudPanel):
         self._static_key = None
         self.update()
 
+    def has_positive_loss(self) -> bool:
+        """Whether a logarithmic axis can be drawn: some loss is finite and positive."""
+        _epochs, train, val = self._series()
+        values = np.concatenate([train, val])
+        return bool(np.any(np.isfinite(values) & (values > 0)))
+
     # ---------------------------------------------------------------- data
     def _series(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         history = self._session.history

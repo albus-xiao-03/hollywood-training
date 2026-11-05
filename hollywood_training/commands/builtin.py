@@ -14,6 +14,7 @@
 ``arch``                the tracked architecture (aliases: ``layers``, ``architecture``)
 ``weights [layer]``     weight statistics of every layer, or one layer in detail
 ``save <path>``         save the model's ``state_dict`` with ``torch.save``
+``scale [lin|log]``     loss chart axis: linear or logarithmic (switches when omitted)
 ``screenshot [path]``   save a PNG of the window (GUI only)
 ``clear``               clear the terminal (alias: ``cls``)
 ``quit``                stop training and close the window (alias: ``exit``)
@@ -21,6 +22,10 @@
 
 Commands that change the run are refused once the training session has ended
 (``TrainingControl.closed``); inspection, ``lr`` and ``save`` keep working.
+
+The ``view`` commands (``scale``, ...) only change the window: they replace the mouse
+interactions of the first version (SPEC R2) and reach the window as a
+:class:`~hollywood_training.commands.view.ViewRequest`.
 """
 
 from __future__ import annotations
@@ -37,6 +42,7 @@ from ..sync.control import TrainingTarget
 from ..sync.events import TrainingState
 from .context import CommandContext
 from .registry import Argument, Command, CommandError, CommandRegistry
+from .view import ViewRequest
 
 CATEGORY_ORDER = ("training", "inspection", "view", "session", "custom", "general")
 KEYS = "keys: Tab completes · ↑/↓ history · PgUp/PgDn scroll · Ctrl+Home/End top/bottom"
@@ -265,6 +271,11 @@ def _weights(ctx: CommandContext, name: str | None) -> str:
     return "\n".join(lines)
 
 
+# ---------------------------------------------------------------------- view
+def _scale(ctx: CommandContext, mode: str | None) -> str:
+    return ctx.show(ViewRequest("scale", (mode,)))
+
+
 # ------------------------------------------------------------------- session
 def _save(ctx: CommandContext, path: str) -> str:
     destination = Path(path).expanduser()
@@ -378,6 +389,16 @@ def builtin_commands() -> list[Command]:
             "weights", "show weight statistics", _weights,
             arguments=(Argument("layer", str, "layer name for details", True),),
             category="inspection",
+        ),
+        Command(
+            "scale", "switch the loss axis between linear and logarithmic", _scale,
+            arguments=(
+                Argument(
+                    "mode", help="lin or log; switches when omitted", optional=True,
+                    choices=("lin", "log"),
+                ),
+            ),
+            category="view",
         ),
         Command(
             "save", "save the model's state_dict", _save,

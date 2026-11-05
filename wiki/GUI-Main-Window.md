@@ -122,6 +122,14 @@ focus target ([Keyboard Focus](GUI-Keyboard-Focus)).
 
 The summary interval is computed once, from `SessionInfo.total_epochs` at session start.
 
+**Window-only actions.** `handle_view(request)` runs these handlers for the
+[View Requests](Commands-View) of the window-only commands. Each returns the text the
+command answers:
+
+| Action | Command | Handler | Effect and answer |
+|---|---|---|---|
+| `scale` | `scale [lin\|log]` | `_view_scale(mode)` | `chart.set_log_scale(...)`: `log` / `lin`, or the opposite of the current scale for `None`. Answers `loss axis: linear` or `loss axis: logarithmic`, plus `(drawn linear until a loss is positive)` when `chart.has_positive_loss()` is false |
+
 **Commands.** The window only passes lines through:
 
 ```
