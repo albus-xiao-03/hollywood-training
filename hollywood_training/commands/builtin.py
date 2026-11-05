@@ -301,7 +301,12 @@ def _probe(ctx: CommandContext, epoch: int | str | None) -> str:
     if record is None:
         raise CommandError(f"epoch {wanted} has not completed yet (last completed: {last})")
     ctx.show(ViewRequest("probe", (wanted,)))  # the window draws the probe line
-    return _probe_report(record, ctx.session)
+    report = _probe_report(record, ctx.session)
+    if ctx.session.state is TrainingState.RUNNING:
+        report += (
+            "\ntraining is running: the probe line clears at the next epoch ('pause' keeps it)"
+        )
+    return report
 
 
 def _probe_report(record, session) -> str:
@@ -452,7 +457,7 @@ def builtin_commands() -> list[Command]:
             ),
             category="view",
             details="The loss chart draws a vertical line at the epoch, with its loss values.\n"
-            "'probe off' removes the line.",
+            "It is removed when training continues (next epoch, resume) or by 'probe off'.",
         ),
         Command(
             "save", "save the model's state_dict", _save,

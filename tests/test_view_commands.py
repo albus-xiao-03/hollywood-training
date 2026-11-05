@@ -5,17 +5,24 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
+from PySide6.QtCore import QTimer
+from PySide6.QtWidgets import QApplication
 
+import hollywood_training as ht
 from hollywood_training.commands import CommandContext, ViewRequest, create_registry
 from hollywood_training.gui import MainWindow
 from hollywood_training.gui.app import QtFrontend
 from hollywood_training.sync import (
     EpochCompleted,
     EpochRecord,
+    LogMessage,
+    SessionFinished,
     SessionStarted,
     SessionState,
+    StateChanged,
     SyncChannel,
     TrainingControl,
+    TrainingPaused,
     TrainingState,
     TrainingTarget,
 )
@@ -23,6 +30,7 @@ from hollywood_training.tracking import NetworkTracker
 from hollywood_training.training.describe import build_session_info
 
 LOSSES = [(0.9, 1.0), (0.5, 0.7), (0.2, 0.4)]  # (train, val) of epochs 1-3
+RUNNING_HINT = "training is running: the probe line clears at the next epoch ('pause' keeps it)"
 
 
 def deliver(window: MainWindow, event) -> None:
@@ -115,6 +123,7 @@ def test_probe_reports_an_epoch_and_draws_the_probe_line(gui):
         "  lr          0.1",
         "  time        0.250 s",
         "  accuracy    70.0%",
+        RUNNING_HINT,  # the fixture's run is running
     ]
     assert chart.probe_epoch == 2
     after = probe_column(chart, 2)
@@ -156,3 +165,78 @@ def test_probe_refuses_epochs_that_do_not_exist(gui, qtbot):
     assert gui.window.chart.probe_epoch is None
     gui.ctx.session.history.clear()
     assert run(gui, "probe").output == "no completed epochs yet"
+
+
+# ---------------------------------------------- probe line: removed when training continues
+def state_changed(state: TrainingState, message: str = "", lr: float = 0.1) -> StateChanged:
+    return StateChanged(state, 3, 6, lr, 0.0, 3.0, message)
+
+
+def test_probe_line_is_removed_at_the_next_epoch(gui):
+    chart = gui.window.chart
+    assert run(gui, "probe 2").output.splitlines()[-1] == RUNNING_HINT
+    record = EpochRecord(4, 0.1, 0.3)
+    deliver(gui.window, EpochCompleted(record, gui.tracker.snapshot(4), 6, 0.1, 16, 4.0))
+    assert chart.probe_epoch is None
+    assert chart.last_probe_readout is None  # the epoch's synchronous repaint had no line
+    assert chart.last_painted_epoch == 4
+
+
+def test_probe_line_stays_while_paused_until_training_resumes(gui):
+    window = gui.window
+    deliver(window, TrainingPaused(4, None, 0, gui.tracker.snapshot(3), 3.0))
+    deliver(window, state_changed(TrainingState.PAUSED, "paused (before epoch 4)"))
+    assert RUNNING_HINT not in run(gui, "probe 2").output
+    deliver(window, state_changed(TrainingState.PAUSED, lr=0.05))  # e.g. `lr 0.05` while paused
+    deliver(window, LogMessage("learning rate set to 0.05"))
+    assert window.chart.probe_epoch == 2
+    deliver(window, state_changed(TrainingState.RUNNING, "resumed"))  # resume / continue / step
+    assert window.chart.probe_epoch is None
+
+
+def test_probe_line_is_removed_when_a_finished_run_continues(gui):
+    window = gui.window
+    deliver(window, state_changed(TrainingState.FINISHED, "all 6 epochs complete"))
+    run(gui, "probe 1")
+    deliver(window, state_changed(TrainingState.FINISHED, lr=0.02))  # a setting change
+    assert window.chart.probe_epoch == 1
+    deliver(window, state_changed(TrainingState.RUNNING, "continuing to epoch 9"))  # `epochs 9`
+    assert window.chart.probe_epoch is None
+
+
+def test_probe_line_stays_after_training_ended(gui):
+    chart = gui.window.chart
+    run(gui, "probe 3")
+    deliver(gui.window, SessionFinished(TrainingState.STOPPED, 3, 5.0, None, "stopped"))
+    assert chart.probe_epoch == 3
+    assert chart.last_probe_readout[0] == "EPOCH 3"  # drawn by the final synchronous repaint
+    assert run(gui, "probe off").output == "probe line removed"
+
+
+def test_probe_line_in_a_real_run_is_removed_on_resume(make_process, qapp):
+    process = make_process(epochs=8)
+    seen: dict[str, object] = {}
+
+    def window() -> MainWindow:
+        return next(w for w in QApplication.topLevelWidgets() if isinstance(w, MainWindow))
+
+    def step() -> None:
+        window().run_command("step 2")  # two epochs, then paused
+        QTimer.singleShot(1200, probe)
+
+    def probe() -> None:
+        window().run_command("probe 1")
+        seen["paused"] = (window().session.state, window().chart.probe_epoch)
+        window().run_command("resume")
+        QTimer.singleShot(1200, finish)
+
+    def finish() -> None:
+        seen["resumed"] = window().chart.probe_epoch
+        seen["report"] = window().terminal.text()
+        window().run_command("quit")
+
+    QTimer.singleShot(300, step)
+    ht.run(process, isolate_gui=False, start_paused=True)
+    assert seen["paused"] == (TrainingState.PAUSED, 1)
+    assert seen["resumed"] is None
+    assert "epoch 1 of 8" in seen["report"] and RUNNING_HINT not in seen["report"]

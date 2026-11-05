@@ -11,6 +11,10 @@ Layout (resizable with splitters)::
 :meth:`MainWindow.render_now` repaints every panel that shows training data
 synchronously; it runs while the training loop waits for an epoch's hand-off.
 
+The probe line (``probe`` command) is removed automatically when training continues: at
+the next epoch, when training switches back to running after a pause or a finished run,
+and when a new session starts. Setting changes (``lr``, ``delay``, ...) keep it.
+
 The window does not execute commands itself: an entered line is echoed and emitted as
 :attr:`MainWindow.command_submitted`; the frontend runs it wherever the training objects
 live and hands the outcome back with :meth:`MainWindow.show_command_result`. Commands that
@@ -115,6 +119,7 @@ class MainWindow(QMainWindow):
         self.session = session
         self._title = title
         self._milestone = 1
+        self._shown_state = session.state  # the state before the event being applied
         self.clock = AnimationClock(60, self)
 
         self.setWindowIcon(app_icon())
@@ -185,6 +190,22 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------ events
     def apply(self, event: Event) -> None:
         """Show ``event`` (already folded into the session state)."""
+        if self._training_continues(event):
+            self.chart.set_probe(None)  # before the synchronous repaint below
+        self._show(event)
+        self._shown_state = self.session.state
+
+    def _training_continues(self, event: Event) -> bool:
+        """Whether ``event`` moves training on: a new epoch, a (re)start, a resume."""
+        if isinstance(event, (EpochCompleted, SessionStarted)):
+            return True
+        return (
+            isinstance(event, StateChanged)
+            and event.state is TrainingState.RUNNING
+            and self._shown_state is not TrainingState.RUNNING
+        )
+
+    def _show(self, event: Event) -> None:
         if isinstance(event, SessionStarted):
             self._on_started(event.info)
             self.render_now()

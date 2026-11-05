@@ -128,7 +128,9 @@ training and validation points, then the probe line, then the hover read-out.
   `EPOCH n`, `TRAIN <loss>` and `VAL <loss>` (no `VAL` line without a validation loss),
   framed in `accent_soft`, beside the line at the top of the plot, on its left near the
   right edge. Positions are computed at paint time, so the line follows scale changes and
-  resizes. An epoch that is not in the history (yet) draws nothing.
+  resizes. An epoch that is not in the history (yet) draws nothing. The
+  [Main Window](GUI-Main-Window) removes the line when training continues (the next epoch,
+  a resume), and `probe off` removes it on request.
 * **Hover read-out**, while the mouse is inside the plot: a dashed vertical line at the
   nearest recorded epoch with the same box, framed in `panel_edge`.
 

@@ -80,7 +80,7 @@ class MainWindow(QMainWindow):
 
 | Member | Behaviour |
 |---|---|
-| `apply(event)` | Shows `event`, which must already be applied to `session` (see below). |
+| `apply(event)` | Shows `event`, which must already be applied to `session` (see below), after removing the probe line when training continues. |
 | `render_now()` | Calls `repaint()` on `header`, `network`, `status` and `chart`. Each runs its `paintEvent` before the call returns. |
 | `run_command(line)` | Enters `line` as if it was typed: echo, then `command_submitted`. |
 | `show_command_result(ok, output)` | Writes `output` at level `info` if `ok`, else `error`. Empty output writes nothing. |
@@ -107,6 +107,21 @@ takes 88 % of the screen's available area, clamped to between 960 × 680 and
 1680 × 1020 and to the available area, and centres itself. Without a screen it uses
 1500 × 920. The terminal's command line holds the keyboard focus and is the window's only
 focus target ([Keyboard Focus](GUI-Keyboard-Focus)).
+
+**Probe line removal.** Before showing an event, `apply()` removes the loss chart's probe
+line (`chart.set_probe(None)`) when the event means that training continues, so the
+epoch's synchronous repaint never shows a stale line:
+
+| Event | Removes the probe line |
+|---|---|
+| `EpochCompleted` | yes: the chart moves on |
+| `SessionStarted` | yes: a new session |
+| `StateChanged` to `RUNNING` while the window showed another state (`PAUSED`, `FINISHED`, ...) | yes: `resume` / `continue` / `start`, `step`, or `epochs <n>` on a finished run |
+| `StateChanged` that keeps the state (`lr`, `delay`, `epochs` while paused) | no |
+| `TrainingPaused`, `SessionFinished`, `LogMessage`, `BatchProgress` | no |
+
+The window remembers the state shown before each event (`_shown_state`, updated after
+every `apply()`), because the frontend has already folded the event into `session`.
 
 **Events.** `apply()` handles each event type as follows:
 

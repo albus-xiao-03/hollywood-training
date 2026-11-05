@@ -206,8 +206,12 @@ chart stays linear and the output adds `(drawn linear until a loss is positive)`
 **`probe [epoch|off]`** prints the values of a completed epoch (the latest without an
 argument) and marks it on the loss chart with the probe line: a vertical line at the
 epoch, rings where it meets the training and validation curves, and a box with the
-epoch's losses. `probe off` removes the line (`probe line removed`, or
-`no probe line to remove`). Probing another epoch moves the line.
+epoch's losses. The line is removed automatically when training continues: at the next
+epoch, and when training resumes after a pause or a finished run (`resume`, `step`,
+`epochs <n>`); setting changes such as `lr` keep it. `probe off` removes it on request
+(`probe line removed`, or `no probe line to remove`). Probing another epoch moves the
+line. While training is running, the output ends with
+`training is running: the probe line clears at the next epoch ('pause' keeps it)`.
 
 ```text
 ht ❯ probe 12
