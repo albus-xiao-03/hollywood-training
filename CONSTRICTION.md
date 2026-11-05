@@ -21,3 +21,9 @@ The `GitHub` has been fully configured in this project, and ready to work with `
 
 ## Virtual Environment
 `Claude` **MUST** use virtual `Python` environment in the project folder under `.venv`, **ALL** `Python` package changes **MUST** remain inside the virtual environment.
+
+---
+
+## Git Commit
+**ALL** functionality implementations and implementation changes **MUST** have its **OWN** and **SEPARATED** `git commit` along with a description messsage. 
+Combining multiple functionality implementations and implementation changes into one `git commit` is **STRICTLY PROHIBITED**.
