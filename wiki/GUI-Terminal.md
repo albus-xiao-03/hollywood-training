@@ -3,7 +3,8 @@
 `hollywood_training/gui/widgets/terminal.py` · part of [GUI](GUI)
 
 This is the integrated command terminal (SPEC GUI 5): a coloured, read-only output log
-and a command line with history (Up / Down) and Tab completion of command names. The
+and a command line with history (Up / Down) and Tab completion of command names.
+PgUp / PgDn and Ctrl+Home / Ctrl+End, typed in the command line, scroll the log. The
 panel only collects input and shows text. Entered lines leave through the
 `command_entered` signal. The frontend that owns the window executes them with the
 [command registry](Commands-Registry) and writes the outcome back. The commands are
@@ -16,6 +17,7 @@ every key goes there ([Keyboard Focus](GUI-Keyboard-Focus)).
 
 * Keep a scrolling log, with one colour per message level.
 * Provide a command line with history and command-name completion.
+* Scroll the log from the keyboard (page up / down, top, bottom).
 * Consume every key it receives, so that no key travels on to the panels around it.
 * Emit entered lines, and leave their execution to the frontend.
 
@@ -39,9 +41,24 @@ PROMPT = "ht ❯"
 `PALETTE.text`. `PROMPT` is shown before the input field and in echoed commands.
 
 ```python
+PAGE_KEYS = {
+    Qt.Key.Key_PageUp: QAbstractSlider.SliderAction.SliderPageStepSub,
+    Qt.Key.Key_PageDown: QAbstractSlider.SliderAction.SliderPageStepAdd,
+}
+EDGE_KEYS = {  # with Ctrl
+    Qt.Key.Key_Home: QAbstractSlider.SliderAction.SliderToMinimum,
+    Qt.Key.Key_End: QAbstractSlider.SliderAction.SliderToMaximum,
+}
+```
+
+The keys of the command line that scroll the log, as scroll-bar actions. Shift does not
+matter for `PAGE_KEYS`; `EDGE_KEYS` need Ctrl (Home and End alone move the text cursor).
+
+```python
 class CommandLine(QLineEdit):
     submitted = Signal(str)
     candidates = Signal(list)
+    scroll_requested = Signal(object)  # QAbstractSlider.SliderAction
 
     def __init__(
         self, completer: Callable[[str], list[str]], parent: QWidget | None = None
@@ -56,6 +73,8 @@ class CommandLine(QLineEdit):
 * `submitted(text)` is emitted on Return when the line is not blank. It carries the
   stripped line, and the field is cleared.
 * `candidates(names)` is emitted when several command names match on Tab.
+* `scroll_requested(action)` is emitted for a scroll key (`PAGE_KEYS`, Ctrl + `EDGE_KEYS`).
+  The key does not edit the line.
 * `history` returns a copy of the entered lines. A line equal to the one before it is not
   stored twice.
 * `complete()` does what Tab does (see below).
@@ -72,6 +91,7 @@ class TerminalPanel(HudPanel):
     ) -> None
 
     def write(self, text: str, level: str = "info") -> None
+    def scroll(self, action: QAbstractSlider.SliderAction) -> None
     def echo(self, command: str) -> None
     def clear(self) -> None
     def text(self) -> str
@@ -83,6 +103,10 @@ class TerminalPanel(HudPanel):
 * `write(text, level)` appends `text`, which may contain newlines, as a new block in the
   colour of `level`. Empty text is ignored. The view scrolls to the end only if it was
   already at the bottom.
+* `scroll(action)` triggers `action` on the log's vertical scroll bar, exactly as the
+  scroll bar itself would: `SliderPageStepSub` / `SliderPageStepAdd` move one page (the
+  visible height), `SliderToMinimum` / `SliderToMaximum` jump to the top or the bottom.
+  It is connected to `input.scroll_requested`.
 * `echo(command)` writes `ht ❯ <command>` at level `command`.
 * `clear()` empties the log, and `text()` returns the whole log as plain text.
 
@@ -97,6 +121,8 @@ class TerminalPanel(HudPanel):
 | Down | shows the next entry, or an empty line after the newest |
 | Tab | runs `complete()` instead of moving the focus |
 | Shift+Tab | does nothing (the focus never leaves the command line) |
+| PgUp / PgDn (with or without Shift) | scrolls the log one page up / down |
+| Ctrl+Home / Ctrl+End | scrolls the log to the top / bottom |
 | any other key | normal line editing (arrows, Home / End, Shift+arrows to select, Ctrl+A / C / X / V / Z); keys without a meaning are consumed |
 
 `complete()` only acts on a single word (a line without spaces). With one match, the line

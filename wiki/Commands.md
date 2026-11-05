@@ -3,8 +3,8 @@
 `hollywood_training/commands/` · layer of the [Architecture](Architecture)
 
 Runtime commands control and inspect a managed session while it runs. You type them into
-the window's [terminal](GUI-Terminal), which keeps a history (Up / Down) and completes
-command names with Tab. A command never touches training state directly. It requests a
+the window's [terminal](GUI-Terminal), which keeps a history (Up / Down), completes
+command names with Tab and scrolls its log with PgUp / PgDn and Ctrl+Home / Ctrl+End. A command never touches training state directly. It requests a
 change through [`TrainingControl`](Sync-Control), or it queues an action that the training
 thread runs at its next safe point between batches. This page covers the package, the
 complete command reference and custom commands.

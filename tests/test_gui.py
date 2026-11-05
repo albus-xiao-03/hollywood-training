@@ -55,6 +55,7 @@ def test_window_draws_the_session_and_every_epoch(window):
     assert window.network.last_painted_epoch == 0
     assert "SmallNet" in window.windowTitle()
     assert "network SmallNet" in window.terminal.text()
+    assert "PgUp / PgDn scroll this log" in window.terminal.text()
     record = EpochRecord(1, 0.9, 0.8, {"accuracy": 0.5})
     event = EpochCompleted(record, window.tracker.snapshot(1), 5, 0.1, 16, 0.2)
     window.session.apply(event)
@@ -82,6 +83,31 @@ def test_tab_completion_and_history(window, qtbot):
     qtbot.keyClick(line, Qt.Key.Key_Return)
     qtbot.keyClick(line, Qt.Key.Key_Up)
     assert line.text() == "history"
+
+
+def test_scroll_keys_in_the_command_line_scroll_the_log(window, qtbot):
+    terminal, line = window.terminal, window.terminal.input
+    for k in range(300):
+        terminal.write(f"line {k}")
+    bar = terminal.output.verticalScrollBar()
+    bottom, page = bar.maximum(), bar.pageStep()
+    assert bottom > 2 * page > 0 and bar.value() == bottom  # the log follows its end
+    qtbot.keyClick(line, Qt.Key.Key_PageUp)
+    assert bar.value() == bottom - page
+    qtbot.keyClick(line, Qt.Key.Key_PageUp, Qt.KeyboardModifier.ShiftModifier)
+    assert bar.value() == bottom - 2 * page
+    qtbot.keyClick(line, Qt.Key.Key_PageDown)
+    assert bar.value() == bottom - page
+    qtbot.keyClick(line, Qt.Key.Key_Home, Qt.KeyboardModifier.ControlModifier)
+    assert bar.value() == 0
+    terminal.write("a new line")  # scrolled back: the view stays where it is
+    assert bar.value() == 0
+    qtbot.keyClick(line, Qt.Key.Key_End, Qt.KeyboardModifier.ControlModifier)
+    assert bar.value() == bar.maximum()
+    assert line.text() == ""  # the scroll keys never edit the line
+    qtbot.keyClicks(line, "status")
+    qtbot.keyClick(line, Qt.Key.Key_Home)  # without Ctrl: the text cursor moves
+    assert line.cursorPosition() == 0 and bar.value() == bar.maximum()
 
 
 def test_screenshot_writes_a_png(window, tmp_path):

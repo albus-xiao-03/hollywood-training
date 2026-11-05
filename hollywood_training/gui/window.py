@@ -233,7 +233,7 @@ class MainWindow(QMainWindow):
         )
         if info.architecture.unsupported:
             self.terminal.write("not drawn: " + ", ".join(info.architecture.unsupported), "dim")
-        self.terminal.write("type 'help' for commands", "dim")
+        self.terminal.write("type 'help' for commands · PgUp / PgDn scroll this log", "dim")
 
     # ---------------------------------------------------------------- commands
     def _submit_command(self, line: str) -> None:

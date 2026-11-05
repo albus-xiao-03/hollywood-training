@@ -109,7 +109,7 @@ focus target ([Keyboard Focus](GUI-Keyboard-Focus)).
 
 | Event | Terminal output | Repaint |
 |---|---|---|
-| `SessionStarted` | window title updated; the banner `▓▒░ HOLLYWOOD TRAINING :: COMMAND TERMINAL ░▒▓`; network, parameter count and number of connection layers; epochs, batch size, loss and optimizer; `not drawn: ...` for unsupported modules; `type 'help' for commands` | `render_now()` |
+| `SessionStarted` | window title updated; the banner `▓▒░ HOLLYWOOD TRAINING :: COMMAND TERMINAL ░▒▓`; network, parameter count and number of connection layers; epochs, batch size, loss and optimizer; `not drawn: ...` for unsupported modules; `type 'help' for commands · PgUp / PgDn scroll this log` | `render_now()` |
 | `EpochCompleted` | `fmt.epoch_summary(...)` at level `dim`, for epoch 1, every `max(1, total_epochs // 20)`-th epoch and the last epoch | `render_now()` |
 | `TrainingPaused` | none | `render_now()` |
 | `StateChanged` | its `message`, if not empty, at the level from `STATE_LEVEL` (default `info`) | none (animated panels show it in the next frame) |

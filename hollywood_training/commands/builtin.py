@@ -39,6 +39,7 @@ from .context import CommandContext
 from .registry import Argument, Command, CommandError, CommandRegistry
 
 CATEGORY_ORDER = ("training", "inspection", "session", "custom", "general")
+KEYS = "keys: Tab completes · ↑/↓ history · PgUp/PgDn scroll · Ctrl+Home/End top/bottom"
 
 
 def _positive_int(text: str) -> int:
@@ -328,6 +329,7 @@ def _help(ctx: CommandContext, name: str | None) -> str:
             if command.category == category
         ]
     lines.append("type 'help <command>' for details")
+    lines.append(KEYS)
     return "\n".join(lines)
 
 

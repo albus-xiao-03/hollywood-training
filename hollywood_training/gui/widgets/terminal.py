@@ -1,7 +1,8 @@
 """``TerminalPanel``: the integrated command terminal.
 
 An output log plus a command line with history (Up / Down) and Tab completion of command
-names. Entered lines are emitted as :attr:`TerminalPanel.command_entered`; the main window
+names. PgUp / PgDn and Ctrl+Home / Ctrl+End, typed in the command line, scroll the log.
+Entered lines are emitted as :attr:`TerminalPanel.command_entered`; the main window
 echoes them and passes them on to its frontend, which executes them and writes the result
 back with :meth:`TerminalPanel.write`.
 
@@ -17,6 +18,7 @@ from collections.abc import Callable
 from PySide6.QtCore import QEvent, Qt, Signal
 from PySide6.QtGui import QTextCharFormat, QTextCursor
 from PySide6.QtWidgets import (
+    QAbstractSlider,
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -41,6 +43,16 @@ LEVEL_COLORS = {
 
 PROMPT = "ht ❯"
 
+# Keys of the command line that scroll the log (Shift is ignored), as scroll-bar actions.
+PAGE_KEYS = {
+    Qt.Key.Key_PageUp: QAbstractSlider.SliderAction.SliderPageStepSub,
+    Qt.Key.Key_PageDown: QAbstractSlider.SliderAction.SliderPageStepAdd,
+}
+EDGE_KEYS = {  # with Ctrl
+    Qt.Key.Key_Home: QAbstractSlider.SliderAction.SliderToMinimum,
+    Qt.Key.Key_End: QAbstractSlider.SliderAction.SliderToMaximum,
+}
+
 
 def _common_prefix(words: list[str]) -> str:
     """Longest string every word starts with."""
@@ -52,10 +64,11 @@ def _common_prefix(words: list[str]) -> str:
 
 
 class CommandLine(QLineEdit):
-    """Single-line input with history and Tab completion."""
+    """Single-line input with history, Tab completion and scroll keys for the log."""
 
     submitted = Signal(str)
     candidates = Signal(list)
+    scroll_requested = Signal(object)  # a QAbstractSlider.SliderAction for the log
 
     def __init__(
         self, completer: Callable[[str], list[str]], parent: QWidget | None = None
@@ -95,10 +108,15 @@ class CommandLine(QLineEdit):
         return super().event(event)
 
     def keyPressEvent(self, event) -> None:
-        if event.key() == Qt.Key.Key_Up and self._history:
+        key = event.key()
+        if key in PAGE_KEYS:
+            self.scroll_requested.emit(PAGE_KEYS[key])
+        elif key in EDGE_KEYS and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            self.scroll_requested.emit(EDGE_KEYS[key])
+        elif key == Qt.Key.Key_Up and self._history:
             self._cursor = max(0, self._cursor - 1)
             self.setText(self._history[self._cursor])
-        elif event.key() == Qt.Key.Key_Down and self._history:
+        elif key == Qt.Key.Key_Down and self._history:
             self._cursor = min(len(self._history), self._cursor + 1)
             self.setText(self._history[self._cursor] if self._cursor < len(self._history) else "")
         else:
@@ -158,6 +176,7 @@ class TerminalPanel(HudPanel):
 
         self.input.submitted.connect(self.command_entered)
         self.input.candidates.connect(lambda names: self.write("   ".join(names), "dim"))
+        self.input.scroll_requested.connect(self.scroll)
         self.setMinimumSize(360, 150)
 
     def write(self, text: str, level: str = "info") -> None:
@@ -175,6 +194,10 @@ class TerminalPanel(HudPanel):
         cursor.insertText(text, style)
         if at_bottom:
             scrollbar.setValue(scrollbar.maximum())
+
+    def scroll(self, action: QAbstractSlider.SliderAction) -> None:
+        """Scroll the log as its scroll bar would (a page up / down, to the top / bottom)."""
+        self.output.verticalScrollBar().triggerAction(action)
 
     def echo(self, command: str) -> None:
         self.write(f"{PROMPT} {command}", "command")

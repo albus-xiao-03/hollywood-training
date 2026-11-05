@@ -110,7 +110,7 @@ tracked with default settings.
 | Training status | current / total epoch, progress bars, **process timer**, ETA, batch size, learning rate, loss function, optimizer, normalisation strategy, scheduler, device, losses, metrics, best epoch |
 | Loss | training and validation loss, extended after every epoch (click: log scale) |
 | System usage | CPU and memory of the machine and the process, plus GPU when training runs on one |
-| Command terminal | the commands below, with history (↑/↓) and Tab completion; everything you type in the window goes here |
+| Command terminal | the commands below, with history (↑/↓), Tab completion and PgUp/PgDn (Ctrl+Home/End) to scroll the log; everything you type in the window goes here |
 
 Wide layers are sampled: at most `max_neurons` (default 20) neurons are drawn per
 column, and statistics always cover the full tensors.

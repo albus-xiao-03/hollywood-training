@@ -143,6 +143,7 @@ def test_inspection_commands(context):
 def test_help_and_frontend_only_commands(context):
     listing = run(context, "help").output
     assert "TRAINING" in listing and "INSPECTION" in listing and "lr <value>" in listing
+    assert "PgUp/PgDn scroll" in listing.splitlines()[-1]  # the terminal keys
     assert "usage: lr <value>" in run(context, "help lr").output
     assert "not available" in run(context, "screenshot").output
 

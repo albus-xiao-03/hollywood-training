@@ -20,6 +20,7 @@ the user-facing reference (usage, output, examples) see [Commands](Commands).
 
 ```python
 CATEGORY_ORDER = ("training", "inspection", "session", "custom", "general")
+KEYS = "keys: Tab completes · ↑/↓ history · PgUp/PgDn scroll · Ctrl+Home/End top/bottom"
 
 def builtin_commands() -> list[Command]: ...
 def create_registry(extra: Iterable[Command] = ()) -> CommandRegistry: ...
@@ -27,6 +28,8 @@ def create_registry(extra: Iterable[Command] = ()) -> CommandRegistry: ...
 
 * `CATEGORY_ORDER`: order of the groups in the `help` listing; other categories follow
   alphabetically.
+* `KEYS`: the last line of the `help` listing, the keys of the window's
+  [terminal](GUI-Terminal).
 * `builtin_commands()` returns a fresh list of new `Command` objects on every call.
 * `create_registry(extra)` returns `CommandRegistry(builtin_commands())` with every
   command of `extra` (e.g. `process.commands`) registered after it, without `replace`.
@@ -98,7 +101,8 @@ still open.
 `fmt.duration` (timer with milliseconds, ETA without), `fmt.count` and `fmt.percent`; a
 missing value prints as `—`. The `best` line of `status` shows `monitored_loss` of
 `session.best_record()` ([Sync Events](Sync-Events)). `help` pads every usage to the longest one and appends
-`type 'help <command>' for details`; `help <command>` prints `(default …)` only for
+`type 'help <command>' for details` and the terminal keys (`KEYS`: Tab, ↑/↓, PgUp/PgDn,
+Ctrl+Home/End); `help <command>` prints `(default …)` only for
 optional arguments whose default is not `None`.
 
 ## Used by / uses
