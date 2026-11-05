@@ -65,7 +65,7 @@ def test_show_returns_the_outcome_or_nothing():
 def window(qtbot):
     win = MainWindow(SessionState())
     qtbot.addWidget(win)
-    win._view_actions["shout"] = _shout  # a test action; features register their own
+    win.view_actions.register("shout", _shout)  # a test action next to the real ones
     return win
 
 
@@ -96,7 +96,7 @@ def test_the_remote_frontend_sends_requests_to_the_window_process(qtbot):
     remote._link = Link(training_end)
     gui = WindowProcess(Link(window_end))
     qtbot.addWidget(gui.window)
-    gui.window._view_actions["shout"] = _shout
+    gui.window.view_actions.register("shout", _shout)
     for request in (ViewRequest("shout", ("hi",)), ViewRequest("shout"), ViewRequest("nope")):
         assert remote.view(request) is None  # the window reports the outcome itself
         message = gui.link.receive()
@@ -104,3 +104,9 @@ def test_the_remote_frontend_sends_requests_to_the_window_process(qtbot):
         gui._dispatch(message)
     text = gui.window.terminal.text().splitlines()
     assert text == ["HI", "nothing to shout", "unknown window action 'nope'"]
+
+
+def test_view_actions_list_and_replace_handlers(window):
+    assert {"probe", "scale", "shout"} <= set(window.view_actions.names)
+    window.view_actions.register("shout", lambda: "replaced")
+    assert window.handle_view(ViewRequest("shout")) == (True, "replaced")

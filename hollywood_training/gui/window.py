@@ -18,7 +18,8 @@ and when a new session starts. Setting changes (``lr``, ``delay``, ...) keep it.
 The window does not execute commands itself: an entered line is echoed and emitted as
 :attr:`MainWindow.command_submitted`; the frontend runs it wherever the training objects
 live and hands the outcome back with :meth:`MainWindow.show_command_result`. Commands that
-only change the window come back as a ``ViewRequest`` for :meth:`MainWindow.handle_view`.
+only change the window come back as a ``ViewRequest`` for :meth:`MainWindow.handle_view`,
+carried out by :class:`~hollywood_training.gui.view_actions.ViewActions`.
 
 While the window is active, every key goes to the terminal's command line
 (:class:`~hollywood_training.gui.keyboard_focus.KeyboardFocus`).
@@ -34,7 +35,7 @@ from PySide6.QtGui import QGuiApplication, QPainter, QPen, QPixmap, QRadialGradi
 from PySide6.QtWidgets import QMainWindow, QSplitter, QVBoxLayout, QWidget
 
 from .. import formatting as fmt
-from ..commands.view import ViewError, ViewRequest
+from ..commands.view import ViewRequest
 from ..sync.events import (
     EpochCompleted,
     Event,
@@ -50,6 +51,7 @@ from ..sync.session import SessionState
 from .animation import AnimationClock
 from .keyboard_focus import KeyboardFocus
 from .theme import PALETTE, app_icon, color, stylesheet
+from .view_actions import ViewActions
 from .widgets import HeaderBar, LossChart, NetworkView, StatusPanel, TerminalPanel, UsagePanel
 
 STATE_LEVEL = {
@@ -152,10 +154,7 @@ class MainWindow(QMainWindow):
         self.clock.start()
         self.keyboard = KeyboardFocus(self, self.terminal.input)
         self.terminal.input.setFocus()
-        self._view_actions: dict[str, Callable[..., str]] = {
-            "scale": self._view_scale,
-            "probe": self._view_probe,
-        }
+        self.view_actions = ViewActions(self)
 
     @staticmethod
     def _splitter(orientation, widgets: list[QWidget], shares: list[int]) -> QSplitter:
@@ -277,34 +276,7 @@ class MainWindow(QMainWindow):
 
     def handle_view(self, request: ViewRequest) -> tuple[bool, str]:
         """Carry out a window-only command request; returns ``(ok, message)``."""
-        handler = self._view_actions.get(request.action)
-        if handler is None:
-            return False, f"unknown window action {request.action!r}"
-        try:
-            return True, handler(*request.arguments)
-        except ViewError as exc:
-            return False, str(exc)
-
-    # ------------------------------------------------------- window-only actions
-    def _view_scale(self, mode: str | None) -> str:
-        """``scale [lin|log]``: the loss axis (replaces clicking the chart)."""
-        log = not self.chart.log_scale if mode is None else mode == "log"
-        self.chart.set_log_scale(log)
-        if not log:
-            return "loss axis: linear"
-        if self.chart.has_positive_loss():
-            return "loss axis: logarithmic"
-        return "loss axis: logarithmic (drawn linear until a loss is positive)"
-
-    def _view_probe(self, epoch: int | None) -> str:
-        """``probe [epoch|off]``: the probe line on the loss chart (replaces hovering it)."""
-        if epoch is not None:
-            self.chart.set_probe(epoch)
-            return ""  # the command itself reports the epoch's values
-        if self.chart.probe_epoch is None:
-            return "no probe line to remove"
-        self.chart.set_probe(None)
-        return "probe line removed"
+        return self.view_actions.handle(request)
 
     def save_screenshot(self, path: Path) -> Path:
         path = Path(path)

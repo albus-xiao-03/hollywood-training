@@ -139,6 +139,7 @@ import the GUI at all.
 |---|---|---|
 | `gui/window.py` | [Main Window](GUI-Main-Window) | `MainWindow`, `Backdrop`: layout, event routing, synchronous repaint |
 | `gui/keyboard_focus.py` | [Keyboard Focus](GUI-Keyboard-Focus) | `KeyboardFocus`: every key typed in the active window goes to the command line |
+| `gui/view_actions.py` | [View Actions](GUI-View-Actions) | `ViewActions`: what the window-only commands do in the window |
 | `gui/remote.py` | [Remote Frontend](GUI-Remote-Frontend) | `RemoteFrontend`: the default frontend, training-process side |
 | `gui/window_process.py` | [Window Process](GUI-Window-Process) | the child process: `WindowProcess`, `main()` |
 | `gui/link.py` | [Link Protocol](GUI-Link-Protocol) | `Link` and the message tuples in both directions |

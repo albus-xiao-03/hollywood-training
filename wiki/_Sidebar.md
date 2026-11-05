@@ -55,6 +55,7 @@
 * [Overview](GUI)
 * [Main Window](GUI-Main-Window)
 * [Keyboard Focus](GUI-Keyboard-Focus)
+* [View Actions](GUI-View-Actions)
 * [Remote Frontend](GUI-Remote-Frontend)
 * [Window Process](GUI-Window-Process)
 * [Link Protocol](GUI-Link-Protocol)

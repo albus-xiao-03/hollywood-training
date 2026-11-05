@@ -48,8 +48,9 @@ handler(ctx, ...) ─▶ ctx.show(ViewRequest(action, arguments))
 * `CommandContext.show(request)` returns the outcome text, or `""` when the window reports
   the outcome itself (window process). Without a frontend (no window) it raises
   `CommandError("<action> is not available in this frontend")`.
-* `MainWindow.handle_view(request)` looks the action up in the window's action table and
-  calls the handler with `*request.arguments`. It returns `(True, text)`, or
+* `MainWindow.handle_view(request)` passes the request to `ViewActions.handle()`
+  ([View Actions](GUI-View-Actions)), which looks the action up and calls its handler
+  with `*request.arguments`. It returns `(True, text)`, or
   `(False, message)` for a `ViewError` or an unknown action
   (`unknown window action '<action>'`).
 
@@ -58,8 +59,9 @@ handler(ctx, ...) ─▶ ctx.show(ViewRequest(action, arguments))
 * Used by [Commands Context](Commands-Context) (`FrontendActions.view`,
   `CommandContext.show`), the window-only commands in [Built-in Commands](Commands-Builtin),
   both frontends ([In-Process Frontend](GUI-In-Process-Frontend),
-  [Remote Frontend](GUI-Remote-Frontend)), the [Window Process](GUI-Window-Process) and
-  the [Main Window](GUI-Main-Window).
+  [Remote Frontend](GUI-Remote-Frontend)), the [Window Process](GUI-Window-Process), the
+  [Main Window](GUI-Main-Window) and [View Actions](GUI-View-Actions), which carries the
+  requests out.
 * Sent across the [link](GUI-Link-Protocol) as `("frontend", "view", request)`.
 * Uses only the standard library.
 

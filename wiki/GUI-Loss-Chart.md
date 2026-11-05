@@ -78,7 +78,7 @@ class LossChart(HudPanel):
 The chart draws `session.history`. Its title is "Loss", its minimum size 320 × 200. It
 has a cross cursor and the tooltip `Click: switch between linear and logarithmic scale`.
 `set_log_scale()` invalidates the cache and schedules a repaint; the `scale` command
-calls it ([Main Window](GUI-Main-Window)). `has_positive_loss()` tells whether a
+calls it ([View Actions](GUI-View-Actions)). `has_positive_loss()` tells whether a
 logarithmic axis can be drawn: some training or validation loss is finite and above 0.
 `set_probe(epoch)` marks `epoch` with the probe line and schedules a repaint, and
 `set_probe(None)` removes it; `probe_epoch` is the marked epoch or `None`. The `probe`

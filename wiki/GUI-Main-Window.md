@@ -16,7 +16,8 @@ frontend owns it. Both frontends use it unchanged: the
   plus a synchronous repaint (`render_now()`) for every synchronous event.
 * Echo entered command lines, emit them as `command_submitted`, and print results handed
   back through `show_command_result()`.
-* Carry out window-only command requests (`handle_view()`, [View Requests](Commands-View)).
+* Carry out window-only command requests (`handle_view()`, [View Requests](Commands-View)),
+  through `view_actions` ([View Actions](GUI-View-Actions)).
 * Route the keyboard to the terminal: `keyboard`, a [Keyboard Focus](GUI-Keyboard-Focus)
   lock, sends every key typed while the window is active to the command line.
 * Save screenshots, and emit `closing` when the window is closed.
@@ -76,7 +77,8 @@ class MainWindow(QMainWindow):
   ([Network View](GUI-Network-View)), `terminal` ([Terminal](GUI-Terminal)), `status`
   ([Status Panel](GUI-Status-Panel)), `chart` ([Loss Chart](GUI-Loss-Chart)) and `usage`
   ([Usage Panel](GUI-Usage-Panel)), plus `keyboard`
-  ([Keyboard Focus](GUI-Keyboard-Focus)), created after the panels.
+  ([Keyboard Focus](GUI-Keyboard-Focus)) and `view_actions`
+  ([View Actions](GUI-View-Actions)), created after the panels.
 
 | Member | Behaviour |
 |---|---|
@@ -84,7 +86,7 @@ class MainWindow(QMainWindow):
 | `render_now()` | Calls `repaint()` on `header`, `network`, `status` and `chart`. Each runs its `paintEvent` before the call returns. |
 | `run_command(line)` | Enters `line` as if it was typed: echo, then `command_submitted`. |
 | `show_command_result(ok, output)` | Writes `output` at level `info` if `ok`, else `error`. Empty output writes nothing. |
-| `handle_view(request)` | Carries out a window-only request: calls the handler registered for `request.action` with `*request.arguments`. Returns `(True, text)`, or `(False, message)` when the handler raises `ViewError` or the action is unknown (`unknown window action '<action>'`). |
+| `handle_view(request)` | Carries out a window-only request with `view_actions.handle(request)` ([View Actions](GUI-View-Actions)). Returns `(True, text)`, or `(False, message)` when the request is refused or the action is unknown. |
 | `save_screenshot(path)` | Creates the parent folders, saves `grab()` as a PNG and returns the resolved path. Raises `OSError` when the file cannot be written. |
 | `closeEvent(event)` | Emits `closing`, stops the clock and the usage panel's timer, then closes. |
 | `closing` | Emitted when the window closes. Both frontends stop training on it. |
@@ -137,14 +139,9 @@ every `apply()`), because the frontend has already folded the event into `sessio
 
 The summary interval is computed once, from `SessionInfo.total_epochs` at session start.
 
-**Window-only actions.** `handle_view(request)` runs these handlers for the
-[View Requests](Commands-View) of the window-only commands. Each returns the text the
-command answers:
-
-| Action | Command | Handler | Effect and answer |
-|---|---|---|---|
-| `probe` | `probe [epoch\|off]` | `_view_probe(epoch)` | `chart.set_probe(epoch)` for an epoch, answering nothing (the command reports the epoch's values). For `None` (`probe off`): removes the line and answers `probe line removed`, or `no probe line to remove` |
-| `scale` | `scale [lin\|log]` | `_view_scale(mode)` | `chart.set_log_scale(...)`: `log` / `lin`, or the opposite of the current scale for `None`. Answers `loss axis: linear` or `loss axis: logarithmic`, plus `(drawn linear until a loss is positive)` when `chart.has_positive_loss()` is false |
+**Window-only actions.** `handle_view(request)` hands the
+[View Requests](Commands-View) of the window-only commands to `view_actions`, which lists
+every action and its answer ([View Actions](GUI-View-Actions)).
 
 **Commands.** The window only passes lines through:
 
@@ -160,6 +157,7 @@ show_command_result(ok, output) ◀───────────────
   `completer=registry.complete`, and by `WindowProcess` ([Window Process](GUI-Window-Process))
   with the command names received over the link.
 * Uses the panels in `gui.widgets`, [Keyboard Focus](GUI-Keyboard-Focus),
+  [View Actions](GUI-View-Actions),
   [Theme](GUI-Theme) (`PALETTE`, `color`, `stylesheet`, `app_icon`),
   [Animation](GUI-Animation), [Formatting](Formatting)
   (`epoch_summary`, `duration`, `count`), [Sync Events](Sync-Events) and
