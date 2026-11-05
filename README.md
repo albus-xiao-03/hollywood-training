@@ -129,6 +129,7 @@ column, and statistics always cover the full tensors.
 | `delay <ms>` | wait after every epoch (`delay 0` = full speed) |
 | `history [n]` · `arch` · `weights [layer]` | inspect epochs, architecture, weights |
 | `scale [lin\|log]` | loss chart axis: linear or logarithmic (switches without an argument) |
+| `probe [epoch\|off]` | an epoch's values (default: the latest), marked on the loss chart by a vertical line with its losses; `probe off` removes the line |
 | `save <path>` | `torch.save(model.state_dict(), path)` |
 | `screenshot [path]` · `clear` · `quit` | save a PNG of the window · clear the terminal · stop and close |
 

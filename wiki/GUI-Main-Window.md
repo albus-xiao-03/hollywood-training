@@ -128,6 +128,7 @@ command answers:
 
 | Action | Command | Handler | Effect and answer |
 |---|---|---|---|
+| `probe` | `probe [epoch\|off]` | `_view_probe(epoch)` | `chart.set_probe(epoch)` for an epoch, answering nothing (the command reports the epoch's values). For `None` (`probe off`): removes the line and answers `probe line removed`, or `no probe line to remove` |
 | `scale` | `scale [lin\|log]` | `_view_scale(mode)` | `chart.set_log_scale(...)`: `log` / `lin`, or the opposite of the current scale for `None`. Answers `loss axis: linear` or `loss axis: logarithmic`, plus `(drawn linear until a loss is positive)` when `chart.has_positive_loss()` is false |
 
 **Commands.** The window only passes lines through:

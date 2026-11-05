@@ -6,8 +6,10 @@
 Its x axis spans all requested epochs, so the curves grow toward the right edge as the
 run progresses. Axes, grid and curves are rendered into a cached pixmap when a new epoch
 arrives, which happens during the synchronous hand-off. Pulsing markers at the newest
-points and the hover read-out are drawn on top every frame. The `scale` command (or a
-click) switches the loss axis between linear and logarithmic.
+points, the probe line and the hover read-out are drawn on top every frame. The `scale`
+command (or a click) switches the loss axis between linear and logarithmic, and the
+`probe` command marks an epoch with the probe line: a vertical line at the epoch, rings
+where it meets the curves, and a box with the epoch's loss values.
 
 ## Responsibilities
 
@@ -16,7 +18,8 @@ click) switches the loss axis between linear and logarithmic.
 * Choose readable axis ranges and ticks for a linear or a logarithmic loss axis.
 * Rebuild the plot only when the history, the epoch total, the scale, the size or the
   device pixel ratio change.
-* Show the values of the hovered epoch.
+* Mark the probed epoch and its loss values (probe line), and show the values of the
+  hovered epoch.
 
 ## API
 
@@ -66,6 +69,10 @@ class LossChart(HudPanel):
     def log_scale(self) -> bool
     def set_log_scale(self, enabled: bool) -> None
     def has_positive_loss(self) -> bool
+
+    @property
+    def probe_epoch(self) -> int | None
+    def set_probe(self, epoch: int | None) -> None
 ```
 
 The chart draws `session.history`. Its title is "Loss", its minimum size 320 × 200. It
@@ -73,9 +80,11 @@ has a cross cursor and the tooltip `Click: switch between linear and logarithmic
 `set_log_scale()` invalidates the cache and schedules a repaint; the `scale` command
 calls it ([Main Window](GUI-Main-Window)). `has_positive_loss()` tells whether a
 logarithmic axis can be drawn: some training or validation loss is finite and above 0.
-The attribute
-`last_painted_epoch: int | None` holds the epoch of the last history record at the
-latest paint.
+`set_probe(epoch)` marks `epoch` with the probe line and schedules a repaint, and
+`set_probe(None)` removes it; `probe_epoch` is the marked epoch or `None`. The `probe`
+command calls them. The attribute `last_painted_epoch: int | None` holds the epoch of the
+last history record at the latest paint, and `last_probe_readout: list[str] | None` the
+lines of the probe box at the latest paint (`None` when no probe line was drawn).
 
 ## How it works
 
@@ -110,9 +119,18 @@ the width, the height and the device pixel ratio. The pixmap holds:
 A value that is not visible (not finite, or 0 or less in log mode) breaks the curve.
 
 **Overlay**, every frame once there is history: a pulsing ring and a dot at the newest
-training and validation points. While the mouse is inside the plot, a dashed vertical
-line marks the nearest recorded epoch, with a box showing `EPOCH n`, `TRAIN ...` and
-`VAL ...`.
+training and validation points, then the probe line, then the hover read-out.
+
+* **Probe line** (`_paint_probe`), while `probe_epoch` is set and that epoch is in the
+  history: a dashed vertical line (`ice`, 1.3 px) across the plot at the epoch; a ring in
+  the curve's colour with an `ice` dot where the line meets the training curve and the
+  validation curve (only for values visible on the current axis); and a box with
+  `EPOCH n`, `TRAIN <loss>` and `VAL <loss>` (no `VAL` line without a validation loss),
+  framed in `accent_soft`, beside the line at the top of the plot, on its left near the
+  right edge. Positions are computed at paint time, so the line follows scale changes and
+  resizes. An epoch that is not in the history (yet) draws nothing.
+* **Hover read-out**, while the mouse is inside the plot: a dashed vertical line at the
+  nearest recorded epoch with the same box, framed in `panel_edge`.
 
 **Interaction.** The `scale [lin|log]` command sets the log scale, or toggles it without
 an argument. A left click toggles it too. Moving the mouse sets the hover
@@ -135,6 +153,9 @@ from hollywood_training.gui.widgets import nice_ticks
 chart = window.chart          # the LossChart of a MainWindow
 chart.set_log_scale(True)     # what `scale log` does
 assert chart.log_scale
+
+chart.set_probe(12)           # what `probe 12` draws: the probe line at epoch 12
+chart.set_probe(None)         # `probe off`
 
 nice_ticks(1, 400, 6)         # [50, 100, 150, 200, 250, 300, 350, 400]: the x ticks of a 400-epoch run
 ```

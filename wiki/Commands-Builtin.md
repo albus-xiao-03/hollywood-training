@@ -44,6 +44,7 @@ def create_registry(extra: Iterable[Command] = ()) -> CommandRegistry: ...
 | `_positive_int` | `int(text) >= 1` | `must be a positive integer`, or `int()`'s own message | `step`, `epochs`, `history` |
 | `_non_negative_float` | finite `float(text) >= 0` | `must be a non-negative number` | `delay` |
 | `_positive_float` | finite `float(text) > 0` | `must be a positive number` | `lr` |
+| `_epoch_or_off` | `"off"`, or `int(text) >= 1` | `must be an epoch number (1 or more) or off` | `probe` |
 
 ### Handlers
 
@@ -64,6 +65,7 @@ training process for the window process, the GUI (main) thread for the in-proces
 | `history` | `_history` | | formats `session.history[-count:]` | handler thread |
 | `arch` | `_architecture` | | formats `session.architecture` | handler thread |
 | `weights` | `_weights` | unknown layer → `CommandError` | formats `session.weights` | handler thread |
+| `probe` | `_probe` | no history → `no completed epochs yet`; an epoch not in `session.history` → `epoch <n> has not completed yet (last completed: <last>)` | `ctx.show(ViewRequest("probe", (epoch,)))`, then formats the record (`_probe_report`); `off` → `ctx.show(ViewRequest("probe", (None,)))` | handler thread, then the window |
 | `scale` | `_scale` | `mode` choices `lin`, `log` | `ctx.show(ViewRequest("scale", (mode,)))` | handler thread, then the window |
 | `save` | `_save` | | `submit(save, "save weights to <path>")` | **training thread** |
 | `screenshot` | `_screenshot` | `require_frontend("screenshot")` | `frontend.screenshot(path)` | handler thread, then the window |

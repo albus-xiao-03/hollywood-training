@@ -91,3 +91,68 @@ def test_scale_says_when_a_log_axis_cannot_be_drawn_yet(qtbot):
     qtbot.addWidget(window)
     ok, text = window.handle_view(ViewRequest("scale", ("log",)))
     assert ok and text == "loss axis: logarithmic (drawn linear until a loss is positive)"
+
+
+# ------------------------------------------------------------------------ probe
+def probe_column(chart, epoch: int) -> list[int]:
+    """The chart's pixels (RGB) down the vertical line at ``epoch``, inside the plot."""
+    image = chart.grab().toImage()
+    axes = chart._axes
+    x = round(axes.x(epoch))
+    top, bottom = round(axes.plot.top()) + 2, round(axes.plot.bottom()) - 2
+    return [image.pixelColor(x, y).rgb() for y in range(top, bottom)]
+
+
+def test_probe_reports_an_epoch_and_draws_the_probe_line(gui):
+    chart = gui.window.chart
+    gui.window.clock.stop()  # still frames: compare two grabs pixel by pixel
+    before = probe_column(chart, 2)
+    report = run(gui, "probe 2")
+    assert report.ok and report.output.splitlines() == [
+        "epoch 2 of 6",
+        "  train loss  0.5000",
+        "  val loss    0.7000",
+        "  lr          0.1",
+        "  time        0.250 s",
+        "  accuracy    70.0%",
+    ]
+    assert chart.probe_epoch == 2
+    after = probe_column(chart, 2)
+    changed = sum(a != b for a, b in zip(before, after, strict=True))
+    assert changed > len(after) // 3  # the dashed vertical line (and its rings) at epoch 2
+    assert chart.last_probe_readout == ["EPOCH 2", "TRAIN 0.5000", "VAL   0.7000"]
+
+
+def test_probe_defaults_to_the_latest_epoch_and_marks_the_best(gui):
+    report = run(gui, "probe").output
+    assert report.startswith("epoch 3 of 6 (best)")
+    gui.window.chart.repaint()
+    assert gui.window.chart.last_probe_readout[0] == "EPOCH 3"
+
+
+def test_probe_line_follows_the_axis_scale(gui):
+    run(gui, "probe 1")
+    run(gui, "scale log")
+    gui.window.chart.repaint()
+    assert gui.window.chart.last_probe_readout == ["EPOCH 1", "TRAIN 0.9000", "VAL   1.0000"]
+
+
+def test_probe_off_removes_the_line(gui):
+    chart = gui.window.chart
+    run(gui, "probe 1")
+    assert run(gui, "probe off").output == "probe line removed"
+    assert chart.probe_epoch is None
+    chart.repaint()
+    assert chart.last_probe_readout is None
+    assert run(gui, "probe off").output == "no probe line to remove"
+
+
+def test_probe_refuses_epochs_that_do_not_exist(gui, qtbot):
+    result = run(gui, "probe 9")
+    assert not result.ok and result.output == "epoch 9 has not completed yet (last completed: 3)"
+    for word in ("0", "first", "-1"):
+        result = run(gui, f"probe {word}")
+        assert not result.ok and "must be an epoch number (1 or more) or off" in result.output
+    assert gui.window.chart.probe_epoch is None
+    gui.ctx.session.history.clear()
+    assert run(gui, "probe").output == "no completed epochs yet"

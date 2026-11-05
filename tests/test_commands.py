@@ -147,6 +147,7 @@ def test_help_and_frontend_only_commands(context):
     assert "usage: lr <value>" in run(context, "help lr").output
     assert "not available" in run(context, "screenshot").output
     assert run(context, "scale").output == "scale is not available in this frontend"
+    assert run(context, "probe").output == "probe is not available in this frontend"
 
 
 def test_custom_commands_from_the_process(make_process):

@@ -15,6 +15,7 @@
 ``weights [layer]``     weight statistics of every layer, or one layer in detail
 ``save <path>``         save the model's ``state_dict`` with ``torch.save``
 ``scale [lin|log]``     loss chart axis: linear or logarithmic (switches when omitted)
+``probe [epoch|off]``   an epoch's values, marked on the loss chart (default: latest)
 ``screenshot [path]``   save a PNG of the window (GUI only)
 ``clear``               clear the terminal (alias: ``cls``)
 ``quit``                stop training and close the window (alias: ``exit``)
@@ -23,7 +24,7 @@
 Commands that change the run are refused once the training session has ended
 (``TrainingControl.closed``); inspection, ``lr`` and ``save`` keep working.
 
-The ``view`` commands (``scale``, ...) only change the window: they replace the mouse
+The ``view`` commands (``scale``, ``probe``, ...) only change the window: they replace the mouse
 interactions of the first version (SPEC R2) and reach the window as a
 :class:`~hollywood_training.commands.view.ViewRequest`.
 """
@@ -66,6 +67,18 @@ def _positive_float(text: str) -> float:
     value = float(text)
     if not math.isfinite(value) or value <= 0:
         raise ValueError("must be a positive number")
+    return value
+
+
+def _epoch_or_off(text: str) -> int | str:
+    if text == "off":
+        return text
+    try:
+        value = int(text)
+    except ValueError:
+        value = 0
+    if value < 1:
+        raise ValueError("must be an epoch number (1 or more) or off")
     return value
 
 
@@ -276,6 +289,38 @@ def _scale(ctx: CommandContext, mode: str | None) -> str:
     return ctx.show(ViewRequest("scale", (mode,)))
 
 
+def _probe(ctx: CommandContext, epoch: int | str | None) -> str:
+    if epoch == "off":
+        return ctx.show(ViewRequest("probe", (None,)))
+    history = ctx.session.history
+    if not history:
+        raise CommandError("no completed epochs yet")
+    last = history[-1].epoch
+    wanted = last if epoch is None else epoch
+    record = next((r for r in history if r.epoch == wanted), None)
+    if record is None:
+        raise CommandError(f"epoch {wanted} has not completed yet (last completed: {last})")
+    ctx.show(ViewRequest("probe", (wanted,)))  # the window draws the probe line
+    return _probe_report(record, ctx.session)
+
+
+def _probe_report(record, session) -> str:
+    best = session.best_record()
+    title = f"epoch {record.epoch} of {session.total_epochs}"
+    if best is not None and best.epoch == record.epoch:
+        title += " (best)"
+    lines = [
+        title,
+        f"  train loss  {fmt.loss(record.train_loss)}",
+        f"  val loss    {fmt.loss(record.val_loss)}",
+        f"  lr          {fmt.learning_rate(record.learning_rate)}",
+        f"  time        {record.duration:.3f} s",
+    ]
+    for name, value in {**record.train_metrics, **_prefixed(record.val_metrics)}.items():
+        lines.append(f"  {name:<11} {fmt.metric(name, value)}")
+    return "\n".join(lines)
+
+
 # ------------------------------------------------------------------- session
 def _save(ctx: CommandContext, path: str) -> str:
     destination = Path(path).expanduser()
@@ -399,6 +444,15 @@ def builtin_commands() -> list[Command]:
                 ),
             ),
             category="view",
+        ),
+        Command(
+            "probe", "show an epoch's values and mark it on the loss chart", _probe,
+            arguments=(
+                Argument("epoch", _epoch_or_off, "epoch number or off (default: latest)", True),
+            ),
+            category="view",
+            details="The loss chart draws a vertical line at the epoch, with its loss values.\n"
+            "'probe off' removes the line.",
         ),
         Command(
             "save", "save the model's state_dict", _save,

@@ -224,6 +224,7 @@ def test_window_process_commands_and_screenshot(make_process, tmp_path):
         if record.epoch == 2:
             remote._execute("status")  # as if typed in the window
             remote._execute("scale log")  # window-only commands travel to the window process
+            remote._execute("probe 1")
             remote.screenshot(shot)
 
     manager = TrainingManager(process, channel=channel, control=control, linger=False)

@@ -2,9 +2,11 @@
 
 The x axis spans all requested epochs, so the curves visibly grow toward the end of the
 run. Click the chart to switch between a linear and a logarithmic loss axis; hover it to
-read the values of an epoch. Axes, grid and curves are cached and rebuilt when a new
-epoch arrives (during the synchronous hand-off); the pulsing markers at the newest points
-and the hover read-out are drawn on top every frame.
+read the values of an epoch. The ``probe`` command marks an epoch with the probe line: a
+vertical line at the epoch, rings where it meets the curves and a box with the epoch's
+loss values. Axes, grid and curves are cached and rebuilt when a new epoch arrives
+(during the synchronous hand-off); the pulsing markers at the newest points, the probe
+line and the hover read-out are drawn on top every frame.
 """
 
 from __future__ import annotations
@@ -27,6 +29,7 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import QWidget
 
 from ... import formatting as fmt
+from ...sync.events import EpochRecord
 from ...sync.session import SessionState
 from ..animation import AnimationClock, pulse
 from ..theme import PALETTE, color, mono_font
@@ -111,7 +114,9 @@ class LossChart(HudPanel):
         self._axes: Axes | None = None
         self._time = 0.0
         self._hover: QPointF | None = None
+        self._probe: int | None = None
         self.last_painted_epoch: int | None = None
+        self.last_probe_readout: list[str] | None = None  # the probe box at the latest paint
         self.setMinimumSize(320, 200)
         self.setMouseTracking(True)
         self.setCursor(Qt.CursorShape.CrossCursor)
@@ -125,6 +130,16 @@ class LossChart(HudPanel):
     def set_log_scale(self, enabled: bool) -> None:
         self._log = bool(enabled)
         self._static_key = None
+        self.update()
+
+    @property
+    def probe_epoch(self) -> int | None:
+        """The epoch marked by the probe line, or None."""
+        return self._probe
+
+    def set_probe(self, epoch: int | None) -> None:
+        """Mark ``epoch`` with the probe line and its loss values; None removes the line."""
+        self._probe = epoch
         self.update()
 
     def has_positive_loss(self) -> bool:
@@ -346,6 +361,7 @@ class LossChart(HudPanel):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         axes = self._axes
         history = self._session.history
+        readout = None
         if axes is not None and history:
             last = history[-1]
             glow = pulse(self._time, 1.3)
@@ -360,8 +376,10 @@ class LossChart(HudPanel):
                 painter.setBrush(color(PALETTE.ice))
                 painter.drawEllipse(center, 2.6, 2.6)
             self._paint_hover(painter, axes)
+            readout = self._paint_probe(painter, axes)
         painter.end()
         self.last_painted_epoch = history[-1].epoch if history else None
+        self.last_probe_readout = readout
 
     def _paint_hover(self, painter: QPainter, axes: Axes) -> None:
         if self._hover is None or not axes.plot.contains(self._hover):
@@ -374,16 +392,51 @@ class LossChart(HudPanel):
         x = axes.x(record.epoch)
         painter.setPen(QPen(color(PALETTE.accent_soft, 140), 1.0, Qt.PenStyle.DashLine))
         painter.drawLine(QPointF(x, axes.plot.top()), QPointF(x, axes.plot.bottom()))
+        self._paint_readout(painter, axes, x, self._readout_lines(record), PALETTE.panel_edge)
+
+    def _paint_probe(self, painter: QPainter, axes: Axes) -> list[str] | None:
+        """The probe line: the epoch, its loss values on the curves, and their read-out."""
+        if self._probe is None:
+            return None
+        record = next((r for r in self._session.history if r.epoch == self._probe), None)
+        if record is None:  # not drawn yet (the window may lag behind the command)
+            return None
+        x = axes.x(record.epoch)
+        painter.setPen(QPen(color(PALETTE.ice, 190), 1.3, Qt.PenStyle.DashLine))
+        painter.drawLine(QPointF(x, axes.plot.top()), QPointF(x, axes.plot.bottom()))
+        for value, ink in ((record.train_loss, PALETTE.accent), (record.val_loss, PALETTE.indigo)):
+            if value is None or not axes.visible(value):
+                continue
+            center = QPointF(x, axes.y(value))
+            painter.setPen(QPen(color(ink), 1.6))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawEllipse(center, 5.5, 5.5)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(color(PALETTE.ice))
+            painter.drawEllipse(center, 2.2, 2.2)
+        lines = self._readout_lines(record)
+        self._paint_readout(painter, axes, x, lines, PALETTE.accent_soft)
+        return lines
+
+    @staticmethod
+    def _readout_lines(record: EpochRecord) -> list[str]:
         lines = [f"EPOCH {record.epoch}", f"TRAIN {fmt.loss(record.train_loss)}"]
         if record.val_loss is not None:
             lines.append(f"VAL   {fmt.loss(record.val_loss)}")
+        return lines
+
+    @staticmethod
+    def _paint_readout(
+        painter: QPainter, axes: Axes, x: float, lines: list[str], edge: str
+    ) -> None:
+        """A box with ``lines`` beside the vertical line at ``x`` (left of it near the edge)."""
         font = mono_font(8.0)
         metrics = QFontMetrics(font)
         width = max(metrics.horizontalAdvance(line) for line in lines) + 14
         height = metrics.height() * len(lines) + 8
         left = x + 10 if x + 10 + width < axes.plot.right() else x - 10 - width
         box = QRectF(left, axes.plot.top() + 6, width, height)
-        painter.setPen(QPen(color(PALETTE.panel_edge), 1.0))
+        painter.setPen(QPen(color(edge), 1.0))
         painter.setBrush(color(PALETTE.void, 220))
         painter.drawRect(box)
         painter.setFont(font)

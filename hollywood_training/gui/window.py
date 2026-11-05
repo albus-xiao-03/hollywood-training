@@ -147,7 +147,10 @@ class MainWindow(QMainWindow):
         self.clock.start()
         self.keyboard = KeyboardFocus(self, self.terminal.input)
         self.terminal.input.setFocus()
-        self._view_actions: dict[str, Callable[..., str]] = {"scale": self._view_scale}
+        self._view_actions: dict[str, Callable[..., str]] = {
+            "scale": self._view_scale,
+            "probe": self._view_probe,
+        }
 
     @staticmethod
     def _splitter(orientation, widgets: list[QWidget], shares: list[int]) -> QSplitter:
@@ -271,6 +274,16 @@ class MainWindow(QMainWindow):
         if self.chart.has_positive_loss():
             return "loss axis: logarithmic"
         return "loss axis: logarithmic (drawn linear until a loss is positive)"
+
+    def _view_probe(self, epoch: int | None) -> str:
+        """``probe [epoch|off]``: the probe line on the loss chart (replaces hovering it)."""
+        if epoch is not None:
+            self.chart.set_probe(epoch)
+            return ""  # the command itself reports the epoch's values
+        if self.chart.probe_epoch is None:
+            return "no probe line to remove"
+        self.chart.set_probe(None)
+        return "probe line removed"
 
     def save_screenshot(self, path: Path) -> Path:
         path = Path(path)
