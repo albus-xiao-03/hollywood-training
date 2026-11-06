@@ -186,3 +186,11 @@ def paint_capture(monkeypatch):
     from htspec.painting import PaintCapture
 
     return PaintCapture(monkeypatch)
+
+
+@pytest.fixture
+def pilot(monkeypatch, qapp):
+    """Drives a real in-process ``ht.run`` (``htspec.pilot.Pilot``)."""
+    from htspec.pilot import Pilot
+
+    return Pilot(monkeypatch)

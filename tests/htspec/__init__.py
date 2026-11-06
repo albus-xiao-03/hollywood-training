@@ -10,5 +10,6 @@ The harness verifies the package against ``specs/R1.md`` and ``specs/R2.md``. Mo
 * :mod:`.painting`   :class:`~.painting.PaintCapture` - what the panels actually draw
 * :mod:`.gui_state`  observable window state and pointer gestures (R2 tests)
 * :mod:`.headless`   :class:`~.headless.HeadlessRun` - a real manager, recording frontend
+* :mod:`.pilot`      :class:`~.pilot.Pilot` - drives a real in-process ``ht.run`` by keyboard
 * :mod:`.keys`       key sequences in a small text notation, typed with ``QTest``
 """
