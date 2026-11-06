@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QApplication, QPushButton, QSplitterHandle, QToolT
 from hollywood_training.commands import create_registry
 from hollywood_training.gui import MainWindow
 from hollywood_training.gui.pointer_guard import POINTER_EVENTS, PointerGuard
+from hollywood_training.gui.theme import stylesheet
 from hollywood_training.gui.widgets import LossChart, NetworkView
 from hollywood_training.sync import EpochRecord, SessionState
 
@@ -226,3 +227,9 @@ def test_outside_the_window_nothing_changes(window, qtbot):
     assert native.cursor().shape() != BLANK
     assert QApplication.overrideCursor() is None
     assert QWidget.mouseGrabber() is None and QWidget.keyboardGrabber() is None
+
+
+def test_the_theme_has_no_pointer_styles():
+    style = stylesheet()
+    assert ":hover" not in style and "QToolTip" not in style
+    assert style.count("selection-background-color") == 1  # the command line (Shift+arrows)

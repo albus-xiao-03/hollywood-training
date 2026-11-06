@@ -108,17 +108,15 @@ def mono_font(point_size: float = 10.0, *, bold: bool = False, spacing: float = 
 
 
 def stylesheet() -> str:
-    """Style for the standard widgets inside the main window (not applied app-wide)."""
+    """Style for the standard widgets inside the main window (not applied app-wide).
+
+    The window is keyboard-only (SPEC R2): there are no hover, tooltip or mouse-selection
+    styles, because no pointer reaches the window.
+    """
     p = PALETTE
     return f"""
     QMainWindow {{ background: {p.void}; }}
-    QToolTip {{
-        color: {p.ice}; background: {p.panel}; border: 1px solid {p.panel_edge}; padding: 4px;
-    }}
-    QPlainTextEdit#terminalOutput {{
-        background: transparent; color: {p.text}; border: none;
-        selection-background-color: {p.electric};
-    }}
+    QPlainTextEdit#terminalOutput {{ background: transparent; color: {p.text}; border: none; }}
     QLineEdit#terminalInput {{
         background: rgba(3, 18, 44, 190); color: {p.ice}; border: 1px solid {p.grid};
         border-radius: 2px; padding: 5px 8px; selection-background-color: {p.electric};
@@ -127,11 +125,9 @@ def stylesheet() -> str:
     QLabel#terminalPrompt {{ color: {p.accent}; }}
     QScrollBar:vertical {{ background: transparent; width: 8px; margin: 2px; }}
     QScrollBar::handle:vertical {{ background: {p.grid}; min-height: 24px; border-radius: 3px; }}
-    QScrollBar::handle:vertical:hover {{ background: {p.electric}; }}
     QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
     QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{ background: none; }}
     QSplitter::handle {{ background: transparent; }}
-    QSplitter::handle:hover {{ background: rgba(0, 229, 255, 50); }}
     """
 
 

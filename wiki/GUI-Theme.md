@@ -13,8 +13,9 @@ keeps them cheap. No font or image files are bundled.
 * Name every colour of the GUI in one frozen `Palette`, which also meets the SPEC's "blue
   based" requirement.
 * Pick a monospace font family that exists on the current system.
-* Style the standard widgets inside the main window (terminal, tooltips, scroll bars,
-  splitter handles).
+* Style the standard widgets inside the main window (terminal, scroll bar, splitter
+  handles). The window is keyboard-only, so there are no hover, tooltip or
+  mouse-selection styles.
 * Provide the drawing primitives the panels share, and cache the expensive ones.
 
 ## API
@@ -44,9 +45,9 @@ PALETTE = Palette()
 
 | Field | Used for |
 |---|---|
-| `void` | darkest background: window, bar troughs, hover box |
+| `void` | darkest background: window, bar troughs, read-out boxes |
 | `background_top`, `background_bottom` | the backdrop gradient |
-| `panel` | panel fill, tooltip background |
+| `panel` | panel fill |
 | `panel_edge` | panel outlines, bar frames, chart axes |
 | `grid` | backdrop grid, chart grid, separators, input border |
 | `accent` | cyan: primary highlight, positive weights, training loss |
@@ -90,10 +91,12 @@ def stylesheet() -> str
 def chamfer_path(rect: QRectF, cut: float) -> QPainterPath
 ```
 
-* `stylesheet()` returns the Qt style sheet for `QMainWindow`, `QToolTip`,
-  `QPlainTextEdit#terminalOutput`, `QLineEdit#terminalInput` (plus `:focus`),
-  `QLabel#terminalPrompt`, the vertical `QScrollBar` and `QSplitter::handle`.
-  `MainWindow` sets it on itself, not on the application.
+* `stylesheet()` returns the Qt style sheet for `QMainWindow`,
+  `QPlainTextEdit#terminalOutput`, `QLineEdit#terminalInput` (plus `:focus`, and a
+  selection colour for text selected with Shift+arrows), `QLabel#terminalPrompt`, the
+  vertical `QScrollBar` and `QSplitter::handle`. It has no `QToolTip` or `:hover` rules
+  ([Pointer Guard](GUI-Pointer-Guard)). `MainWindow` sets it on itself, not on the
+  application.
 * `chamfer_path()` returns a rectangle whose top-left and bottom-right corners are cut
   off by `cut` px (the HUD frame shape).
 
