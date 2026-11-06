@@ -107,6 +107,8 @@ class TerminalPanel(HudPanel):
 * `scroll(action)` triggers `action` on the log's vertical scroll bar, exactly as the
   scroll bar itself would: `SliderPageStepSub` / `SliderPageStepAdd` move one page (the
   visible height), `SliderToMinimum` / `SliderToMaximum` jump to the top or the bottom.
+  `QPlainTextEdit` turns a page action into a page of the lines actually visible, so with
+  some fonts a page is a line more or less than the scroll bar's `pageStep()`.
   It is connected to `input.scroll_requested`.
 * `echo(command)` writes `ht ❯ <command>` at level `command`.
 * `clear()` empties the log, and `text()` returns the whole log as plain text.

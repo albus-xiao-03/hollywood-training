@@ -87,17 +87,25 @@ def test_tab_completion_and_history(window, qtbot):
 
 def test_scroll_keys_in_the_command_line_scroll_the_log(window, qtbot):
     terminal, line = window.terminal, window.terminal.input
+    qtbot.waitUntil(lambda: window.windowHandle().isExposed())
     for k in range(300):
         terminal.write(f"line {k}")
     bar = terminal.output.verticalScrollBar()
-    bottom, page = bar.maximum(), bar.pageStep()
-    assert bottom > 2 * page > 0 and bar.value() == bottom  # the log follows its end
-    qtbot.keyClick(line, Qt.Key.Key_PageUp)
-    assert bar.value() == bottom - page
-    qtbot.keyClick(line, Qt.Key.Key_PageUp, Qt.KeyboardModifier.ShiftModifier)
-    assert bar.value() == bottom - 2 * page
-    qtbot.keyClick(line, Qt.Key.Key_PageDown)
-    assert bar.value() == bottom - page
+
+    def moved(key, modifier=Qt.KeyboardModifier.NoModifier) -> int:
+        """Lines the log moved (up: positive) when ``key`` is typed, in pages."""
+        before, page = bar.value(), bar.pageStep()
+        qtbot.keyClick(line, key, modifier)
+        lines = before - bar.value()
+        # QPlainTextEdit pages by the lines actually visible: about one page step,
+        # depending on the font metrics of the platform
+        assert page - 1 <= abs(lines) <= page + 2, (lines, page)
+        return 1 if lines > 0 else -1
+
+    assert bar.maximum() > 3 * bar.pageStep() > 0 and bar.value() == bar.maximum()
+    assert moved(Qt.Key.Key_PageUp) == 1
+    assert moved(Qt.Key.Key_PageUp, Qt.KeyboardModifier.ShiftModifier) == 1
+    assert moved(Qt.Key.Key_PageDown) == -1
     qtbot.keyClick(line, Qt.Key.Key_Home, Qt.KeyboardModifier.ControlModifier)
     assert bar.value() == 0
     terminal.write("a new line")  # scrolled back: the view stays where it is
