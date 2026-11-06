@@ -12,6 +12,7 @@ Run with ``tests/run_tests.sh`` (see ``tests/README.md``).
 
 from __future__ import annotations
 
+import contextlib
 import json
 import sys
 import time
@@ -150,6 +151,34 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config) -> None:
 
 # ---------------------------------------------------------------------- fixtures
 @pytest.fixture(autouse=True)
+def _reap_window_processes():
+    """Safety net: a window process the test left running (e.g. after a failure in the
+    middle of an isolated run) is terminated, so it cannot outlive the test."""
+    yield
+    import psutil
+
+    strays = []
+    for child in psutil.Process().children(recursive=False):
+        with contextlib.suppress(psutil.Error):
+            if "hollywood_training.gui.window_process" in " ".join(child.cmdline()):
+                strays.append(child)
+    if not strays:
+        return
+    for child in strays:
+        with contextlib.suppress(psutil.Error):
+            child.terminate()
+    _gone, alive = psutil.wait_procs(strays, timeout=5)
+    for child in alive:
+        with contextlib.suppress(psutil.Error):
+            child.kill()
+    warnings.warn(
+        f"{len(strays)} window process(es) still ran after the test and were terminated",
+        RuntimeWarning,
+        stacklevel=1,
+    )
+
+
+@pytest.fixture(autouse=True)
 def _stop_leftover_runs():
     """Safety net: a ``HeadlessRun`` left training by a failed test is stopped."""
     yield
@@ -194,3 +223,21 @@ def pilot(monkeypatch, qapp):
     from htspec.pilot import Pilot
 
     return Pilot(monkeypatch)
+
+
+@pytest.fixture
+def probe(tmp_path, monkeypatch):
+    """Enables the window-process probe for ``ht.run`` calls made by this test.
+
+    Returns ``enable(script=None, weights=False, interval_ms=100) -> ProbeLog``.
+    """
+    from htspec.probe_log import ProbeLog, probe_env
+
+    def enable(*, script=None, weights=False, interval_ms=100):
+        log_path = tmp_path / f"probe-{time.monotonic_ns()}.jsonl"
+        variables = probe_env(log_path, script=script, weights=weights, interval_ms=interval_ms)
+        for name, value in variables.items():
+            monkeypatch.setenv(name, value)
+        return ProbeLog(log_path)
+
+    return enable
