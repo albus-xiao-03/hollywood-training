@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import sys
 import time
+import warnings
 from collections import defaultdict
 from pathlib import Path
 
@@ -145,3 +146,15 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config) -> None:
     target = paths.REPORTS / f"coverage-{stamp}.json"
     target.write_text(json.dumps(report, indent=2))
     write(f"coverage report: {target}")
+
+
+# ---------------------------------------------------------------------- fixtures
+@pytest.fixture(autouse=True)
+def _stop_leftover_runs():
+    """Safety net: a ``HeadlessRun`` left training by a failed test is stopped."""
+    yield
+    from htspec.headless import stop_leftover_runs
+
+    if stop_leftover_runs():
+        warnings.warn("a training run still ran after the test and was stopped", RuntimeWarning,
+                      stacklevel=1)  # fmt: skip
