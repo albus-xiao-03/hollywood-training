@@ -201,6 +201,29 @@ def _stop_leftover_runs():
                       stacklevel=1)  # fmt: skip
 
 
+@pytest.fixture(autouse=True, scope="module")
+def _end_leftover_sessions():
+    """Safety net at the end of every module: a live X11 session or a helper process the
+    module left running - e.g. when a fixture failed half-way through its setup, so that its
+    teardown never ran - is ended, so that it cannot stay on the shared X server and disturb
+    the modules after it."""
+    yield
+    ended = 0
+    live = sys.modules.get("htspec.live")  # not imported: no session can exist
+    if live is not None:
+        ended += live.close_leftover_sessions()  # the window process before its script
+    subproc = sys.modules.get("htspec.subproc")
+    if subproc is not None:
+        ended += subproc.terminate_leftovers()
+    if ended:
+        warnings.warn(
+            f"{ended} live session(s) or helper process(es) still ran after the module and "
+            "were ended",
+            RuntimeWarning,
+            stacklevel=1,
+        )
+
+
 @pytest.fixture
 def make_rig(qtbot):
     """Factory for :class:`htspec.rig.GuiRig` (an offscreen window + the real commands)."""

@@ -49,6 +49,10 @@ requirement also counts for **R2.5** ("all other R1 features must not be affecte
 * Safety nets run after every test:
   * A window process the test left running is ended.
   * A training run still going on its thread is stopped.
+* A safety net runs after every module: a live X11 session or a helper process the module
+  left running is ended. This can happen when a fixture fails during its setup, because a
+  failed setup gets no teardown. Without the net, such a window would stay on the shared
+  Xvfb and disturb the modules after it.
 * `LiveApp.close()` ends a live X11 session's window process before its script, so no
   window stays on the shared Xvfb.
 

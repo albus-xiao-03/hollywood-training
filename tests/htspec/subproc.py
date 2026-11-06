@@ -8,12 +8,24 @@ import subprocess
 import sys
 import threading
 import time
+import weakref
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
 from . import paths
 from .env import subprocess_env
+
+_SPAWNED: weakref.WeakSet[Spawned] = weakref.WeakSet()  # see terminate_leftovers
+
+
+def terminate_leftovers() -> int:
+    """Terminate every spawned process that is still running; how many were. The safety
+    net in ``tests/conftest.py`` calls this at the end of every module."""
+    leftover = [spawned for spawned in list(_SPAWNED) if spawned.alive()]
+    for spawned in leftover:
+        spawned.terminate()
+    return len(leftover)
 
 
 def run_python(
@@ -137,4 +149,6 @@ def spawn_python(
         text=True,
         bufsize=1,
     )
-    return Spawned(popen)
+    spawned = Spawned(popen)
+    _SPAWNED.add(spawned)
+    return spawned

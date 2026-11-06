@@ -26,7 +26,17 @@ from .subproc import spawn_python
 from .x11 import XClient, XServer
 
 _counter = itertools.count(1)
+_OPEN: set[LiveApp] = set()  # sessions not closed yet (see close_leftover_sessions)
 PANELS = ("header", "network", "terminal", "output", "input", "status", "chart", "usage")
+
+
+def close_leftover_sessions() -> int:
+    """Close every session that is still open; how many were. The safety net in
+    ``tests/conftest.py`` calls this at the end of every module."""
+    leftover = list(_OPEN)
+    for app in leftover:
+        app.close()
+    return len(leftover)
 
 
 class LiveApp:
@@ -55,6 +65,7 @@ class LiveApp:
             env=env,
             display=xserver.display,
         )
+        _OPEN.add(self)
         try:
             first = self.log.wait(
                 lambda r: bool(r.get("visible") and r.get("win_id")), timeout=startup_timeout
@@ -199,6 +210,7 @@ class LiveApp:
         if self._closed:
             return
         self._closed = True
+        _OPEN.discard(self)
         doomed = []
         with contextlib.suppress(psutil.Error):
             doomed = psutil.Process(self.process.pid).children(recursive=True)
