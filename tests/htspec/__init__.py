@@ -14,5 +14,6 @@ The harness verifies the package against ``specs/R1.md`` and ``specs/R2.md``. Mo
 * :mod:`.probe_log`  enables and reads the window-process probe (``htspec/probe``)
 * :mod:`.subproc`    Python subprocesses with the harness environment
 * :mod:`.x11`        a private Xvfb server and an XTest / XFixes client (ctypes)
+* :mod:`.live`       :class:`~.live.LiveApp` - a real user script on the private X server
 * :mod:`.keys`       key sequences in a small text notation, typed with ``QTest``
 """
