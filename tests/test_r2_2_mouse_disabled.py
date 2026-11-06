@@ -313,10 +313,12 @@ def test_mouse_input_in_the_isolated_window_process_changes_nothing(probe):
 @pytest.fixture(scope="module")
 def live(xserver, xclient, tmp_path_factory):
     app = LiveApp(xserver, xclient, tmp_path_factory.mktemp("r2_2_live"))
-    for _ in range(3):  # a log long enough to scroll and to select from
-        app.enter("help", expect="type 'help <command>' for details")
-    yield app
-    app.close()
+    try:  # also when the setup fails half-way: a failed setup gets no teardown
+        for _ in range(3):  # a log long enough to scroll and to select from
+            app.enter("help", expect="type 'help <command>' for details")
+        yield app
+    finally:
+        app.close()
 
 
 def _stable_live(state: dict) -> dict:

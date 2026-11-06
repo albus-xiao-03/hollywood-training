@@ -243,19 +243,18 @@ OTHER_GEOMETRY = (20, 20, 380, 220)  # left of the Hollywood window on the 2560 
 def outside(xserver, xclient, tmp_path_factory):
     """The real Hollywood window plus another application next to it."""
     app = LiveApp(xserver, xclient, tmp_path_factory.mktemp("r2_6_live"))
-    neighbour = spawn_python(
-        [str(paths.SCENARIO_DIR / "other_app.py"), *map(str, OTHER_GEOMETRY)],
-        display=xserver.display,
-    )
-    try:
+    neighbour = None
+    try:  # also when the setup fails half-way: a failed setup gets no teardown
+        neighbour = spawn_python(
+            [str(paths.SCENARIO_DIR / "other_app.py"), *map(str, OTHER_GEOMETRY)],
+            display=xserver.display,
+        )
         ready = neighbour.wait_message(lambda m: m.get("event") == "ready", timeout=60)
-    except AssertionError:
+        yield app, neighbour, ready
+    finally:
+        if neighbour is not None:
+            neighbour.terminate()
         app.close()
-        neighbour.terminate()
-        raise
-    yield app, neighbour, ready
-    neighbour.terminate()
-    app.close()
 
 
 def _other_point(ready, dx=0, dy=0) -> tuple[int, int]:

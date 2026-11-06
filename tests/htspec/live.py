@@ -46,6 +46,9 @@ class LiveApp:
         self.display = xserver.display
         self.log = ProbeLog(Path(folder) / f"live-{next(_counter)}.jsonl")
         self.config = {"epochs": 1_000_000, "batches": 4, "batch_sleep": 0.004, **(config or {})}
+        self.win_id: int | None = None  # known once the window has appeared
+        self.window_pid: int | None = None
+        self._closed = False
         env = probe_env(self.log.path, base={})
         self.process = spawn_python(
             [str(paths.SCENARIO_DIR / "train_app.py"), json.dumps(self.config)],
@@ -61,11 +64,15 @@ class LiveApp:
             raise AssertionError(
                 f"the window did not appear; stderr: {self.process.stderr_text()[-3000:]}"
             ) from None
-        self.win_id: int = first["win_id"]
+        self.win_id = first["win_id"]
         hello = self.log.records("hello")
-        self.window_pid: int | None = hello[0]["pid"] if hello else None
+        self.window_pid = hello[0]["pid"] if hello else None
         if focus:
-            self.focus()
+            try:
+                self.focus()
+            except BaseException:
+                self.close()  # nobody gets this session: it must not stay on the X server
+                raise
 
     # ---------------------------------------------------------------- state
     @staticmethod
@@ -78,6 +85,24 @@ class LiveApp:
 
     def wait(self, predicate, *, after: float | None = None, timeout: float = 20.0):
         return self.log.wait(predicate, after=after, timeout=timeout)
+
+    def shown(self) -> bool:
+        """Whether a window of this session is viewable on the X server."""
+        return any(
+            window.window == self.win_id
+            or (self.window_pid is not None and window.pid == self.window_pid)
+            for window in self.x.viewable_windows()
+        )
+
+    def wait_gone(self, timeout: float = 15.0) -> bool:
+        """Wait until no window of this session is viewable any more; whether that happened
+        within ``timeout`` seconds."""
+        deadline = time.monotonic() + timeout
+        while self.shown():
+            if time.monotonic() >= deadline:
+                return False
+            time.sleep(0.05)
+        return True
 
     def rect(self, panel: str, state: dict[str, Any] | None = None) -> list[int]:
         return (state or self.state())["panels"][panel]
@@ -167,9 +192,13 @@ class LiveApp:
 
     def close(self, timeout: float = 10.0) -> None:
         """End the session: the window process first (killing only the script would orphan
-        it on the shared X server), then the script; wait until the window is gone."""
+        it on the shared X server), then the script; wait until the window is gone. Closing
+        a session again does nothing."""
         import psutil
 
+        if self._closed:
+            return
+        self._closed = True
         doomed = []
         with contextlib.suppress(psutil.Error):
             doomed = psutil.Process(self.process.pid).children(recursive=True)
@@ -184,6 +213,4 @@ class LiveApp:
             with contextlib.suppress(psutil.Error):
                 process.kill()
         self.process.terminate()
-        deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline and self.x.viewable_windows(self.window_pid):
-            time.sleep(0.05)
+        self.wait_gone(timeout)  # this session's window only, also when its pid is unknown
