@@ -85,7 +85,7 @@ def headless_context():
 
 
 @pytest.mark.parametrize(
-    ("line", "request"),
+    ("line", "expected"),  # not "request": pytest reserves that name for its fixture
     [
         ("scale", ViewRequest("scale", (None,))),
         ("scale log", ViewRequest("scale", ("log",))),
@@ -107,11 +107,11 @@ def headless_context():
         ("window full", ViewRequest("window", ("full",))),
     ],
 )
-def test_each_form_hands_the_window_one_validated_request(headless_context, line, request):
+def test_each_form_hands_the_window_one_validated_request(headless_context, line, expected):
     context, frontend = headless_context
     result = context.registry.execute(line, context)
     assert result.ok, result.output
-    assert frontend.calls == [("view", request)]
+    assert frontend.calls == [("view", expected)]
 
 
 @pytest.mark.parametrize(
