@@ -6,6 +6,9 @@
   without one, or with an unknown id, is a collection error. The session ends with a
   requirement coverage table (also written to ``.temp/tests/reports/``). Tests that verify
   an R1 requirement count for R2 requirement 5 as well ("all other R1 features not affected").
+* Tests marked ``x11`` run against a private Xvfb server started by the harness; they are
+  skipped when Xvfb or the X client libraries are missing. The display the tests were
+  started from is never used.
 
 Run with ``tests/run_tests.sh`` (see ``tests/README.md``).
 """
@@ -64,6 +67,7 @@ REQUIREMENTS: dict[str, str] = {
 
 MARKERS = (
     "req(*ids): the SPEC requirement(s) a test verifies, e.g. req('R1.5', 'R2.5')",
+    "x11: needs the private Xvfb X server the harness starts (real pointer, cursor, keys)",
     "subprocess: starts Python subprocesses (window process, demos, scenarios)",
     "slow: takes more than a few seconds",
 )
@@ -82,6 +86,8 @@ def requirement_ids(item: pytest.Item) -> list[str]:
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    from htspec import x11
+
     problems = []
     for item in items:
         ids = requirement_ids(item)
@@ -92,6 +98,12 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
             problems.append(f"{item.nodeid}: unknown requirement id(s) {unknown}")
     if problems:
         raise pytest.UsageError("SPEC traceability errors:\n  " + "\n  ".join(problems))
+    reason = x11.available()
+    if reason is not None:
+        skip = pytest.mark.skip(reason=f"real X11 tests need a private Xvfb: {reason}")
+        for item in items:
+            if item.get_closest_marker("x11") is not None:
+                item.add_marker(skip)
 
 
 # ------------------------------------------------------------- coverage summary
@@ -241,3 +253,25 @@ def probe(tmp_path, monkeypatch):
         return ProbeLog(log_path)
 
     return enable
+
+
+@pytest.fixture(scope="session")
+def xserver():
+    """A private Xvfb server (never the display the tests were started from)."""
+    from htspec import x11
+
+    reason = x11.available()
+    if reason is not None:
+        pytest.skip(reason)
+    server = x11.XServer()
+    yield server
+    server.stop()
+
+
+@pytest.fixture(scope="session")
+def xclient(xserver):
+    from htspec.x11 import XClient
+
+    client = XClient(xserver.display)
+    yield client
+    client.close()
