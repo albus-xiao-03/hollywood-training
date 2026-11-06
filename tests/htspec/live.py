@@ -133,11 +133,12 @@ class LiveApp:
         """
         started = self.now()
         self.type(line + "\n")
-        sent = self.wait(
+        # the probe log's records of a kind ("send", "result"); self.wait() reads "state" only
+        sent = self.log.wait(
             lambda r: r.get("msg") == "command" and r.get("value") == line,
             kind="send", after=started, timeout=timeout,
         )  # fmt: skip
-        answer = self.wait(lambda r: True, kind="result", after=sent["t"], timeout=timeout)
+        answer = self.log.wait(lambda r: True, kind="result", after=sent["t"], timeout=timeout)
         if expect is not None:
 
             def says(record) -> bool:
