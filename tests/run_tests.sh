@@ -28,4 +28,8 @@ elif [ -f "$project/.venv/bin/activate" ]; then
     export PYTEST_ADDOPTS="-o cache_dir=$project/.temp/pytest-cache ${PYTEST_ADDOPTS:-}"
 fi
 
+# with pytest-cov (--cov): coverage's data file, by default <project>/.coverage, goes to .temp/
+export COVERAGE_FILE="${COVERAGE_FILE:-$project/.temp/coverage/.coverage}"
+mkdir -p "$(dirname "$COVERAGE_FILE")"
+
 exec python -m pytest "$@"

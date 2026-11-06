@@ -43,8 +43,9 @@ requirement also counts for **R2.5** ("all other R1 features must not be affecte
   and key presses go to that virtual screen only.
 * **Temporary files stay in `.temp/`.** This covers `TMPDIR` (pytest's `tmp_path`,
   multiprocessing sockets), the XDG caches, bytecode (`PYTHONPYCACHEPREFIX`), Qt's runtime
-  folder and the coverage reports. Xvfb itself keeps its socket in `/tmp/.X11-unix`, which
-  the X server removes when it stops.
+  folder and the coverage reports. With pytest-cov (`--cov`), `run_tests.sh` also puts
+  coverage's data file there (`COVERAGE_FILE`, default `.temp/coverage/.coverage`). Xvfb
+  itself keeps its socket in `/tmp/.X11-unix`, which the X server removes when it stops.
 * No test writes into the project tree; files are created only under `tmp_path`.
 * Safety nets run after every test:
   * A window process the test left running is ended.
