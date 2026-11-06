@@ -158,3 +158,23 @@ def _stop_leftover_runs():
     if stop_leftover_runs():
         warnings.warn("a training run still ran after the test and was stopped", RuntimeWarning,
                       stacklevel=1)  # fmt: skip
+
+
+@pytest.fixture
+def make_rig(qtbot):
+    """Factory for :class:`htspec.rig.GuiRig` (an offscreen window + the real commands)."""
+    from htspec.rig import GuiRig
+
+    def factory(**kwargs):
+        return GuiRig(qtbot, **kwargs)
+
+    return factory
+
+
+@pytest.fixture
+def rig(make_rig):
+    """A shown, active window whose session has started (10 epochs announced)."""
+    instance = make_rig()
+    instance.feeder.start()
+    instance.process_events()
+    return instance
