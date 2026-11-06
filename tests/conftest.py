@@ -178,3 +178,11 @@ def rig(make_rig):
     instance.feeder.start()
     instance.process_events()
     return instance
+
+
+@pytest.fixture
+def paint_capture(monkeypatch):
+    """Records what the panels draw (``htspec.painting.PaintCapture``)."""
+    from htspec.painting import PaintCapture
+
+    return PaintCapture(monkeypatch)
