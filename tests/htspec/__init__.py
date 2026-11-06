@@ -8,6 +8,7 @@ The harness verifies the package against ``specs/R1.md`` and ``specs/R2.md``. Mo
 * :mod:`.events`     :class:`~.events.SessionFeeder` - real-shaped session events
 * :mod:`.rig`        :class:`~.rig.GuiRig` - an offscreen window wired to the real commands
 * :mod:`.painting`   :class:`~.painting.PaintCapture` - what the panels actually draw
+* :mod:`.gui_state`  observable window state and pointer gestures (R2 tests)
 * :mod:`.headless`   :class:`~.headless.HeadlessRun` - a real manager, recording frontend
 * :mod:`.keys`       key sequences in a small text notation, typed with ``QTest``
 """
