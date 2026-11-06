@@ -9,14 +9,19 @@ harness was written from scratch for the R2 version of the package (branch
 `feature/keyboard-driven-control`). It replaces the build-phase test suite that was in
 `tests/` before.
 
-> **Status:** written, not yet executed. In this step the harness was developed only:
-> * its files were checked with `ruff` (lint and format);
-> * a parse-only cross-check confirmed that every imported harness or package name and every
->   requested fixture exists, and that every PySide6, torch, numpy and psutil name it uses
->   resolves;
-> * two read-only reviews were done, and their findings fixed.
+> **Status:** executed. Its first execution, in the QA of 2026-11-06 (`QA-REPORT.md`),
+> exposed defects in the harness itself. They are fixed:
+> * `test_r2_4_view_commands.py` could not be collected, because a test parameter was named
+>   `request`, which pytest reserves.
+> * `LiveApp.enter()` waited on the wrong probe records, so every real-X11 test that types
+>   a command stopped before its checks.
+> * A live session whose fixture failed during setup stayed on the shared Xvfb.
+> * R2.6 assumed that a closing window was gone after a fixed 0.3 s.
+> * The drop tests used deprecated drag-event constructors.
+> * With `--cov`, coverage's data file landed in the project root.
 >
-> No test has ever run.
+> After the fixes, a full run collects 1083 test cases. The only failures are the strict
+> tests listed below, which are findings about the package.
 
 ## Running it
 
@@ -108,18 +113,17 @@ or the X client libraries are missing), `subprocess` marks tests that start proc
 | R2.6 outside the window unaffected | `test_r2_6_outside_window.py` |
 | R2.7 keyboard rerouted to the terminal | `test_r2_7_keyboard_reroute.py` |
 
-That is 415 test functions in 27 modules; parametrization makes the actual number of test
-cases larger.
+That is 415 test functions in 27 modules; with parametrization, 1083 test cases.
 
-## Strict tests that reading the code suggests will fail
+## Strict tests that fail on this version
 
-None of this has been executed. Reading the implementation suggests the tests below will
-expose deviations from a strict reading of the specification. Their failures are findings
-about the package, not harness bugs, and they must not be weakened.
+Execution confirmed what reading the implementation had suggested: the tests below expose
+deviations from a strict reading of the specification. Their failures are findings about
+the package, not harness bugs, and they must not be weakened.
 
 * **R1.1 "the weights of each layer"**:
   `test_r1_01_tracking.py::test_every_weight_matrix_of_the_network_is_tracked`
-  * Expected to fail for `Bilinear`, `RNN`, `LSTM`, `GRU`, `MultiheadAttention` and
+  * Fails for `Bilinear`, `RNN`, `LSTM`, `GRU`, `MultiheadAttention` and
     `TransformerEncoderLayer`.
   * Tracking only follows modules with a 2-D `weight` (and convolutions and embeddings).
 * **GUI 1 "the REAL weights of each layer"**:
@@ -135,6 +139,7 @@ about the package, not harness bugs, and they must not be weakened.
     handles), with the 80 px header and the margins, need about 764 px.
   * The window allows a height of 680 px, which is also where it opens on a 1366 × 768
     screen.
+  * At 960 × 680, 1202 × 680 and 1366 × 720 the status panel and the loss chart overlap.
 
 ## Layout
 
