@@ -11,7 +11,8 @@
 * Ambient animation: glowing neurons and **signals** travelling along connections, more
   often along stronger weights, flashing the neurons they reach.
 * The ``neuron`` command **highlights** one drawn neuron: a pulsing ring and a box with its
-  index, label and bias (:meth:`NetworkView.select_neuron`).
+  index, label and bias (:meth:`NetworkView.select_neuron`). The view has no mouse
+  handling (SPEC R2); the highlight replaces the neuron tooltip of the first version.
 
 The static part (frame, connections, neurons, labels) is rendered into a cached pixmap,
 rebuilt only when the weights or the layout change - i.e. during the synchronous epoch
@@ -34,7 +35,7 @@ from PySide6.QtGui import (
     QPixmap,
     QPolygonF,
 )
-from PySide6.QtWidgets import QToolTip, QWidget
+from PySide6.QtWidgets import QWidget
 
 from ... import formatting as fmt
 from ...sync.events import TrainingState
@@ -304,7 +305,6 @@ class NetworkView(HudPanel):
         self.last_painted_epoch: int | None = None
         self.last_selection_readout: list[str] | None = None  # the box at the latest paint
         self.setMinimumSize(460, 320)
-        self.setMouseTracking(True)
         clock.tick.connect(self._advance)
 
     # --------------------------------------------------------------- selection
@@ -687,16 +687,3 @@ class NetworkView(HudPanel):
     def resizeEvent(self, event) -> None:
         self._static_key = None
         super().resizeEvent(event)
-
-    def mouseMoveEvent(self, event) -> None:
-        position = event.position()
-        for column in self._columns:
-            if abs(position.x() - column.x) > self._radius * 2:
-                continue
-            for k, y in enumerate(column.ys):
-                if abs(position.y() - float(y)) <= self._radius * 2:
-                    text = "\n".join(self.neuron_lines(column, k))
-                    QToolTip.showText(event.globalPosition().toPoint(), text, self)
-                    return
-        QToolTip.hideText()
-        super().mouseMoveEvent(event)

@@ -11,7 +11,7 @@ from PySide6.QtWidgets import QApplication, QPushButton, QSplitterHandle, QToolT
 from hollywood_training.commands import create_registry
 from hollywood_training.gui import MainWindow
 from hollywood_training.gui.pointer_guard import POINTER_EVENTS, PointerGuard
-from hollywood_training.gui.widgets import LossChart
+from hollywood_training.gui.widgets import LossChart, NetworkView
 from hollywood_training.sync import EpochRecord, SessionState
 
 BLANK = Qt.CursorShape.BlankCursor
@@ -165,7 +165,7 @@ MOUSE_HANDLERS = (
 )
 
 
-@pytest.mark.parametrize("panel", [LossChart])
+@pytest.mark.parametrize("panel", [LossChart, NetworkView])
 def test_panels_have_no_mouse_code(panel):
     for name in MOUSE_HANDLERS:
         assert getattr(panel, name) is getattr(QWidget, name), f"{panel.__name__}.{name}"

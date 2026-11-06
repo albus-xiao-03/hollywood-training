@@ -129,9 +129,9 @@ class NetworkView(HudPanel):
 ```
 
 The view draws `session.architecture` with `session.weights`. Its title is "Neural
-architecture", and its minimum size is 460 × 320. Pointer input never reaches it
-([Pointer Guard](GUI-Pointer-Guard)), so the hover tooltip of the first version is
-inactive; the `neuron` command shows the same information. The attribute
+architecture", and its minimum size is 460 × 320. It has no mouse handling: the `neuron`
+command highlights a neuron and shows what the hover tooltip of the first version showed,
+and the [Pointer Guard](GUI-Pointer-Guard) keeps pointer input away. The attribute
 `last_painted_epoch: int | None` holds `session.weights.epoch` after each paint, or
 `None` without weights.
 
