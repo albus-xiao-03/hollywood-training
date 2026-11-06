@@ -356,8 +356,9 @@ def test_outside_stays_normal_after_the_session_ended(outside, xclient):
     x, y, w, h = app.window_rect()
     result = app.quit()
     assert result["state"] in ("stopped", "finished")
-    time.sleep(0.3)
-    assert not xclient.cursor_at(x + w // 2, y + h // 2).blank  # the window is gone
+    # where the window was is outside now - once its window has really left the X server
+    assert app.wait_gone(), "the window is still shown after the session ended"
+    assert not xclient.cursor_at(x + w // 2, y + h // 2).blank
     assert not xclient.cursor_at(*_other_point(ready)).blank
     start = len(neighbour.messages)
     xclient.click(*_other_point(ready))
