@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QApplication, QPushButton, QSplitterHandle, QToolT
 from hollywood_training.commands import create_registry
 from hollywood_training.gui import MainWindow
 from hollywood_training.gui.pointer_guard import POINTER_EVENTS, PointerGuard
+from hollywood_training.gui.widgets import LossChart
 from hollywood_training.sync import EpochRecord, SessionState
 
 BLANK = Qt.CursorShape.BlankCursor
@@ -150,6 +151,28 @@ def test_widgets_added_later_are_guarded(window, qtbot):
     assert button.cursor().shape() == BLANK and not button.hasMouseTracking()
     qtbot.mouseClick(button, Qt.MouseButton.LeftButton)
     assert clicks == []
+
+
+MOUSE_HANDLERS = (
+    "mousePressEvent",
+    "mouseReleaseEvent",
+    "mouseDoubleClickEvent",
+    "mouseMoveEvent",
+    "wheelEvent",
+    "enterEvent",
+    "leaveEvent",
+    "contextMenuEvent",
+)
+
+
+@pytest.mark.parametrize("panel", [LossChart])
+def test_panels_have_no_mouse_code(panel):
+    for name in MOUSE_HANDLERS:
+        assert getattr(panel, name) is getattr(QWidget, name), f"{panel.__name__}.{name}"
+
+
+def test_the_loss_chart_has_no_tooltip(window):
+    assert window.chart.toolTip() == ""
 
 
 def test_every_pointer_device_is_covered():

@@ -75,8 +75,9 @@ class LossChart(HudPanel):
 ```
 
 The chart draws `session.history`. Its title is "Loss", its minimum size 320 × 200.
-Pointer input never reaches it ([Pointer Guard](GUI-Pointer-Guard)), so the click and
-hover handlers of the first version are inactive.
+It has no mouse handling, no tooltip and no cursor of its own: commands set the axis and
+the probe line, and the [Pointer Guard](GUI-Pointer-Guard) keeps pointer input away. (The
+first version switched the axis on a click and showed a read-out on hover.)
 `set_log_scale()` invalidates the cache and schedules a repaint; the `scale` command
 calls it ([View Actions](GUI-View-Actions)). `has_positive_loss()` tells whether a
 logarithmic axis can be drawn: some training or validation loss is finite and above 0.

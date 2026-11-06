@@ -1,12 +1,12 @@
 """``LossChart``: training and validation loss, extended after every epoch.
 
 The x axis spans all requested epochs, so the curves visibly grow toward the end of the
-run. Click the chart to switch between a linear and a logarithmic loss axis; hover it to
-read the values of an epoch. The ``probe`` command marks an epoch with the probe line: a
-vertical line at the epoch, rings where it meets the curves and a box with the epoch's
-loss values. Axes, grid and curves are cached and rebuilt when a new epoch arrives
-(during the synchronous hand-off); the pulsing markers at the newest points, the probe
-line and the hover read-out are drawn on top every frame.
+run. The chart is driven by commands, not by the mouse (SPEC R2): ``scale`` switches
+between a linear and a logarithmic loss axis, and ``probe`` marks an epoch with the probe
+line - a vertical line at the epoch, rings where it meets the curves and a box with the
+epoch's loss values. Axes, grid and curves are cached and rebuilt when a new epoch arrives
+(during the synchronous hand-off); the pulsing markers at the newest points and the probe
+line are drawn on top every frame.
 """
 
 from __future__ import annotations
@@ -113,14 +113,10 @@ class LossChart(HudPanel):
         self._static_key: tuple | None = None
         self._axes: Axes | None = None
         self._time = 0.0
-        self._hover: QPointF | None = None
         self._probe: int | None = None
         self.last_painted_epoch: int | None = None
         self.last_probe_readout: list[str] | None = None  # the probe box at the latest paint
         self.setMinimumSize(320, 200)
-        self.setMouseTracking(True)
-        self.setCursor(Qt.CursorShape.CrossCursor)
-        self.setToolTip("Click: switch between linear and logarithmic scale")
         clock.tick.connect(self._advance)
 
     @property
@@ -375,24 +371,10 @@ class LossChart(HudPanel):
                 painter.setPen(Qt.PenStyle.NoPen)
                 painter.setBrush(color(PALETTE.ice))
                 painter.drawEllipse(center, 2.6, 2.6)
-            self._paint_hover(painter, axes)
             readout = self._paint_probe(painter, axes)
         painter.end()
         self.last_painted_epoch = history[-1].epoch if history else None
         self.last_probe_readout = readout
-
-    def _paint_hover(self, painter: QPainter, axes: Axes) -> None:
-        if self._hover is None or not axes.plot.contains(self._hover):
-            return
-        history = self._session.history
-        epoch = axes.x0 + (self._hover.x() - axes.plot.left()) / axes.plot.width() * (
-            axes.x1 - axes.x0
-        )
-        record = min(history, key=lambda r: abs(r.epoch - epoch))
-        x = axes.x(record.epoch)
-        painter.setPen(QPen(color(PALETTE.accent_soft, 140), 1.0, Qt.PenStyle.DashLine))
-        painter.drawLine(QPointF(x, axes.plot.top()), QPointF(x, axes.plot.bottom()))
-        self._paint_readout(painter, axes, x, self._readout_lines(record), PALETTE.panel_edge)
 
     def _paint_probe(self, painter: QPainter, axes: Axes) -> list[str] | None:
         """The probe line: the epoch, its loss values on the curves, and their read-out."""
@@ -415,7 +397,7 @@ class LossChart(HudPanel):
             painter.setBrush(color(PALETTE.ice))
             painter.drawEllipse(center, 2.2, 2.2)
         lines = self._readout_lines(record)
-        self._paint_readout(painter, axes, x, lines, PALETTE.accent_soft)
+        self._paint_readout(painter, axes, x, lines)
         return lines
 
     @staticmethod
@@ -426,9 +408,7 @@ class LossChart(HudPanel):
         return lines
 
     @staticmethod
-    def _paint_readout(
-        painter: QPainter, axes: Axes, x: float, lines: list[str], edge: str
-    ) -> None:
+    def _paint_readout(painter: QPainter, axes: Axes, x: float, lines: list[str]) -> None:
         """A box with ``lines`` beside the vertical line at ``x`` (left of it near the edge)."""
         font = mono_font(8.0)
         metrics = QFontMetrics(font)
@@ -436,7 +416,7 @@ class LossChart(HudPanel):
         height = metrics.height() * len(lines) + 8
         left = x + 10 if x + 10 + width < axes.plot.right() else x - 10 - width
         box = QRectF(left, axes.plot.top() + 6, width, height)
-        painter.setPen(QPen(color(edge), 1.0))
+        painter.setPen(QPen(color(PALETTE.accent_soft), 1.0))
         painter.setBrush(color(PALETTE.void, 220))
         painter.drawRect(box)
         painter.setFont(font)
@@ -447,24 +427,11 @@ class LossChart(HudPanel):
                 line,
             )
 
-    # ------------------------------------------------------------ interaction
+    # -------------------------------------------------------------- animation
     def _advance(self, dt: float) -> None:
         self._time += dt
         if self._session.history:
             self.update()
-
-    def mousePressEvent(self, event) -> None:
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.set_log_scale(not self._log)
-        super().mousePressEvent(event)
-
-    def mouseMoveEvent(self, event) -> None:
-        self._hover = event.position()
-        super().mouseMoveEvent(event)
-
-    def leaveEvent(self, event) -> None:
-        self._hover = None
-        super().leaveEvent(event)
 
     def resizeEvent(self, event) -> None:
         self._static_key = None
