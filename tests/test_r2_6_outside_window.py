@@ -198,9 +198,10 @@ def test_another_window_of_the_application_accepts_drops_and_context_menus(other
     mime.setText("dropped text")
     copy = Qt.DropAction.CopyAction
     position = edit.rect().center()
-    QApplication.sendEvent(edit, QDragEnterEvent(position, copy, mime, LEFT, NO_MOD))
-    QApplication.sendEvent(edit, QDragMoveEvent(position, copy, mime, LEFT, NO_MOD))
-    QApplication.sendEvent(edit, QDropEvent(QPointF(position), copy, mime, LEFT, NO_MOD))
+    point = QPointF(position)  # QPointF: the QPoint constructors of drag events are deprecated
+    QApplication.sendEvent(edit, QDragEnterEvent(point, copy, mime, LEFT, NO_MOD))
+    QApplication.sendEvent(edit, QDragMoveEvent(point, copy, mime, LEFT, NO_MOD))
+    QApplication.sendEvent(edit, QDropEvent(point, copy, mime, LEFT, NO_MOD))
     assert "dropped text" in edit.text()
     seen: list[str] = []
     menu_event = QContextMenuEvent(

@@ -191,10 +191,10 @@ def test_dropping_text_onto_the_window_inserts_nothing(busy):
     before = snapshot(window)
     targets = (window.terminal.input, window.terminal.output.viewport(), window, window.chart)
     for widget in targets:
-        pos = widget.rect().center()
+        pos = QPointF(widget.rect().center())  # QPointF: the QPoint constructors are deprecated
         QApplication.sendEvent(widget, QDragEnterEvent(pos, copy, mime, LEFT, NO_MOD))
         QApplication.sendEvent(widget, QDragMoveEvent(pos, copy, mime, LEFT, NO_MOD))
-        QApplication.sendEvent(widget, QDropEvent(QPointF(pos), copy, mime, LEFT, NO_MOD))
+        QApplication.sendEvent(widget, QDropEvent(pos, copy, mime, LEFT, NO_MOD))
     QApplication.processEvents()
     assert changes(before, snapshot(window)) == {}
 
