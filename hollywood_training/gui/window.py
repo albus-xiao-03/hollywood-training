@@ -21,8 +21,10 @@ live and hands the outcome back with :meth:`MainWindow.show_command_result`. Com
 only change the window come back as a ``ViewRequest`` for :meth:`MainWindow.handle_view`,
 carried out by :class:`~hollywood_training.gui.view_actions.ViewActions`.
 
-While the window is active, every key goes to the terminal's command line
-(:class:`~hollywood_training.gui.keyboard_focus.KeyboardFocus`).
+The window is keyboard-driven (SPEC R2): while it is active, every key goes to the
+terminal's command line (:class:`~hollywood_training.gui.keyboard_focus.KeyboardFocus`),
+and inside it there is no mouse pointer and no pointer input
+(:class:`~hollywood_training.gui.pointer_guard.PointerGuard`).
 """
 
 from __future__ import annotations
@@ -50,6 +52,7 @@ from ..sync.events import (
 from ..sync.session import SessionState
 from .animation import AnimationClock
 from .keyboard_focus import KeyboardFocus
+from .pointer_guard import PointerGuard
 from .theme import PALETTE, app_icon, color, stylesheet
 from .view_actions import ViewActions
 from .widgets import HeaderBar, LossChart, NetworkView, StatusPanel, TerminalPanel, UsagePanel
@@ -161,6 +164,7 @@ class MainWindow(QMainWindow):
         self._fit_to_screen()
         self.clock.start()
         self.keyboard = KeyboardFocus(self, self.terminal.input)
+        self.pointer = PointerGuard(self)
         self.terminal.input.setFocus()
         self.view_actions = ViewActions(self)
 

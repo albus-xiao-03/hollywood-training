@@ -25,7 +25,7 @@ in the training process instead.
 │   neurons tinted by bias, signal particles   ├───────────────────────────────┤
 │                                              │ LossChart - LOSS              │
 │                                              │   train (cyan), val (indigo)  │
-│                                        70 %  │   best epoch, click: lin/log  │
+│                                        70 %  │   best epoch, scale: lin/log  │
 ├──────────────────────────────────────────────┤                          36 % │
 │ TerminalPanel - COMMAND TERMINAL             ├───────────────────────────────┤
 │   log output (epochs, states, results)       │ UsagePanel - SYSTEM USAGE     │
@@ -35,8 +35,7 @@ in the training process instead.
 ```
 
 The percentages are the initial splitter shares. The `layout` command changes them
-(`layout chart 50`, `layout reset`); splitters can also still be dragged. Panels cannot be
-collapsed. Every panel except the header is a [HUD Panel](GUI-HUD-Panel).
+(`layout chart 50`, `layout reset`). Panels cannot be collapsed. Every panel except the header is a [HUD Panel](GUI-HUD-Panel).
 Details: [Main Window](GUI-Main-Window).
 
 ## What each panel shows
@@ -93,7 +92,7 @@ usage panels redraw completely each frame.
 | `Backdrop` | gradient, grid | size or DPR changes | (nothing) |
 | [Header](GUI-Header) | title, class name, display name, parameters | name, display name, parameter count, size, DPR | emblem, state badge, device |
 | [Network View](GUI-Network-View) | frame, connections, neurons, labels | `architecture_version`, `weights_version`, size, DPR | neuron halos, signal particles, scanning band |
-| [Loss Chart](GUI-Loss-Chart) | frame, grid, ticks, curves, best marker, legend | `history_version`, `total_epochs`, lin/log, size, DPR | pulsing newest-point markers, hover read-out |
+| [Loss Chart](GUI-Loss-Chart) | frame, grid, ticks, curves, best marker, legend | `history_version`, `total_epochs`, lin/log, size, DPR | pulsing newest-point markers, probe line |
 | [Status Panel](GUI-Status-Panel), [Usage Panel](GUI-Usage-Panel) | glowing digits only (sprites) | (per character) | the whole panel |
 
 * **One clock.** `MainWindow` owns a single `AnimationClock` (60 fps). Each animated
@@ -140,6 +139,7 @@ import the GUI at all.
 |---|---|---|
 | `gui/window.py` | [Main Window](GUI-Main-Window) | `MainWindow`, `Backdrop`: layout, event routing, synchronous repaint |
 | `gui/keyboard_focus.py` | [Keyboard Focus](GUI-Keyboard-Focus) | `KeyboardFocus`: every key typed in the active window goes to the command line |
+| `gui/pointer_guard.py` | [Pointer Guard](GUI-Pointer-Guard) | `PointerGuard`: no mouse pointer and no pointer input inside the window |
 | `gui/view_actions.py` | [View Actions](GUI-View-Actions) | `ViewActions`: what the window-only commands do in the window |
 | `gui/remote.py` | [Remote Frontend](GUI-Remote-Frontend) | `RemoteFrontend`: the default frontend, training-process side |
 | `gui/window_process.py` | [Window Process](GUI-Window-Process) | the child process: `WindowProcess`, `main()` |

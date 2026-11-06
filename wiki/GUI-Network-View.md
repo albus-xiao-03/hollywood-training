@@ -17,7 +17,7 @@ box showing its index, label and bias.
 * Lay them out and render the static layer (frame, connections, neurons, labels) into a
   pixmap. Rebuild it only when the architecture, the weights, the size or the device
   pixel ratio change.
-* Animate halos and signals every frame, and show a tooltip for each neuron.
+* Animate halos and signals every frame.
 * Highlight a selected neuron (`select_neuron`) and describe it (`neuron_lines`).
 * Record which epoch's weights were painted last (`last_painted_epoch`).
 
@@ -129,7 +129,9 @@ class NetworkView(HudPanel):
 ```
 
 The view draws `session.architecture` with `session.weights`. Its title is "Neural
-architecture", its minimum size is 460 × 320, and mouse tracking is on. The attribute
+architecture", and its minimum size is 460 × 320. Pointer input never reaches it
+([Pointer Guard](GUI-Pointer-Guard)), so the hover tooltip of the first version is
+inactive; the `neuron` command shows the same information. The attribute
 `last_painted_epoch: int | None` holds `session.weights.epoch` after each paint, or
 `None` without weights.
 
@@ -141,8 +143,8 @@ architecture", its minimum size is 460 × 320, and mouse tracking is on. The att
 * `columns()` returns the columns as drawn now (it brings the cache up to date first).
 * `neuron_lines(column, k)` describes the `k`-th drawn neuron of `column`:
   `<COLUMN> · neuron <index>`, then its label (when the column has labels), then
-  `bias <+0.00000>` (when the column has biases). The highlight box, the hover tooltip and
-  the `neuron` command show these lines.
+  `bias <+0.00000>` (when the column has biases). The highlight box and the `neuron`
+  command show these lines.
 * `last_selection_readout: list[str] | None` holds the lines of the highlight box at the
   latest paint, or `None` when no highlight was drawn.
 
@@ -185,8 +187,7 @@ each update. The panel code is set here too: `NET-01` without an architecture, o
 positive weights and `indigo` on negative ones. While `RUNNING`, a faint cyan band sweeps
 across every 2.8 s. Without columns, the panel shows a pulsing `AWAITING NETWORK SIGNAL`,
 or `NO CONNECTION LAYERS TO DRAW` when the architecture has no layers. Each tick advances
-the signals by `dt · STATE_SPEED[state]` and decays the energy by `exp(-3.2 · dt)`. When
-the mouse is within two radii of a neuron, a tooltip shows `neuron_lines(...)`.
+the signals by `dt · STATE_SPEED[state]` and decays the energy by `exp(-3.2 · dt)`.
 
 **Highlight** (`_paint_selection`), drawn last while a neuron is selected and drawn: an
 `ice` ring of the neuron's radius + 4 px and a pulsing `accent` ring around it, plus a box

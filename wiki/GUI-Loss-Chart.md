@@ -6,8 +6,8 @@
 Its x axis spans all requested epochs, so the curves grow toward the right edge as the
 run progresses. Axes, grid and curves are rendered into a cached pixmap when a new epoch
 arrives, which happens during the synchronous hand-off. Pulsing markers at the newest
-points, the probe line and the hover read-out are drawn on top every frame. The `scale`
-command (or a click) switches the loss axis between linear and logarithmic, and the
+points and the probe line are drawn on top every frame. The `scale` command switches
+the loss axis between linear and logarithmic, and the
 `probe` command marks an epoch with the probe line: a vertical line at the epoch, rings
 where it meets the curves, and a box with the epoch's loss values.
 
@@ -18,8 +18,7 @@ where it meets the curves, and a box with the epoch's loss values.
 * Choose readable axis ranges and ticks for a linear or a logarithmic loss axis.
 * Rebuild the plot only when the history, the epoch total, the scale, the size or the
   device pixel ratio change.
-* Mark the probed epoch and its loss values (probe line), and show the values of the
-  hovered epoch.
+* Mark the probed epoch and its loss values (probe line).
 
 ## API
 
@@ -75,8 +74,9 @@ class LossChart(HudPanel):
     def set_probe(self, epoch: int | None) -> None
 ```
 
-The chart draws `session.history`. Its title is "Loss", its minimum size 320 × 200. It
-has a cross cursor and the tooltip `Click: switch between linear and logarithmic scale`.
+The chart draws `session.history`. Its title is "Loss", its minimum size 320 × 200.
+Pointer input never reaches it ([Pointer Guard](GUI-Pointer-Guard)), so the click and
+hover handlers of the first version are inactive.
 `set_log_scale()` invalidates the cache and schedules a repaint; the `scale` command
 calls it ([View Actions](GUI-View-Actions)). `has_positive_loss()` tells whether a
 logarithmic axis can be drawn: some training or validation loss is finite and above 0.
@@ -119,7 +119,7 @@ the width, the height and the device pixel ratio. The pixmap holds:
 A value that is not visible (not finite, or 0 or less in log mode) breaks the curve.
 
 **Overlay**, every frame once there is history: a pulsing ring and a dot at the newest
-training and validation points, then the probe line, then the hover read-out.
+training and validation points, then the probe line.
 
 * **Probe line** (`_paint_probe`), while `probe_epoch` is set and that epoch is in the
   history: a dashed vertical line (`ice`, 1.3 px) across the plot at the epoch; a ring in
@@ -131,12 +131,9 @@ training and validation points, then the probe line, then the hover read-out.
   resizes. An epoch that is not in the history (yet) draws nothing. The
   [Main Window](GUI-Main-Window) removes the line when training continues (the next epoch,
   a resume), and `probe off` removes it on request.
-* **Hover read-out**, while the mouse is inside the plot: a dashed vertical line at the
-  nearest recorded epoch with the same box, framed in `panel_edge`.
-
-**Interaction.** The `scale [lin|log]` command sets the log scale, or toggles it without
-an argument. A left click toggles it too. Moving the mouse sets the hover
-point, and leaving the widget clears it. A resize clears the cache key.
+**Interaction.** Keyboard only: the `scale [lin|log]` command sets the log scale, or
+toggles it without an argument, and the `probe` command sets the probe line. A resize
+clears the cache key.
 
 ## Used by / uses
 

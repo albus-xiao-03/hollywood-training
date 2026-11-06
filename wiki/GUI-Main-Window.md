@@ -20,6 +20,8 @@ frontend owns it. Both frontends use it unchanged: the
   through `view_actions` ([View Actions](GUI-View-Actions)).
 * Route the keyboard to the terminal: `keyboard`, a [Keyboard Focus](GUI-Keyboard-Focus)
   lock, sends every key typed while the window is active to the command line.
+* Keep the mouse out: `pointer`, a [Pointer Guard](GUI-Pointer-Guard), hides the pointer
+  and swallows all pointer input inside the window.
 * Save screenshots, and emit `closing` when the window is closed.
 
 ## API
@@ -94,7 +96,8 @@ class MainWindow(QMainWindow):
   ([Network View](GUI-Network-View)), `terminal` ([Terminal](GUI-Terminal)), `status`
   ([Status Panel](GUI-Status-Panel)), `chart` ([Loss Chart](GUI-Loss-Chart)) and `usage`
   ([Usage Panel](GUI-Usage-Panel)), plus `keyboard`
-  ([Keyboard Focus](GUI-Keyboard-Focus)) and `view_actions`
+  ([Keyboard Focus](GUI-Keyboard-Focus)), `pointer` ([Pointer Guard](GUI-Pointer-Guard))
+  and `view_actions`
   ([View Actions](GUI-View-Actions)), created after the panels.
 
 | Member | Behaviour |
@@ -179,6 +182,7 @@ show_command_result(ok, output) ◀───────────────
   `completer=registry.complete`, and by `WindowProcess` ([Window Process](GUI-Window-Process))
   with the command names received over the link.
 * Uses the panels in `gui.widgets`, [Keyboard Focus](GUI-Keyboard-Focus),
+  [Pointer Guard](GUI-Pointer-Guard),
   [View Actions](GUI-View-Actions),
   [Theme](GUI-Theme) (`PALETTE`, `color`, `stylesheet`, `app_icon`),
   [Animation](GUI-Animation), [Formatting](Formatting)
