@@ -38,6 +38,29 @@ The percentages are the initial splitter shares. The `layout` command changes th
 (`layout chart 50`, `layout reset`). Panels cannot be collapsed. Every panel except the header is a [HUD Panel](GUI-HUD-Panel).
 Details: [Main Window](GUI-Main-Window).
 
+## Keyboard-driven control
+
+The window is driven entirely from the keyboard (specification R2). While it is the
+active window, every key goes to the [terminal](GUI-Terminal)'s command line
+([Keyboard Focus](GUI-Keyboard-Focus)): no click is needed, and no other widget can take
+the focus. Inside the window there is no mouse pointer and no pointer input has any effect
+([Pointer Guard](GUI-Pointer-Guard)). Both are per window: other applications, other
+windows of the same `QApplication`, and the native title bar keep their mouse and pointer.
+
+What the mouse did in the first version is a command or a terminal key now. The commands
+are listed under `VIEW` in `help`; they change only the window and reach it as
+[View Requests](Commands-View), carried out by [View Actions](GUI-View-Actions):
+
+| First version (mouse) | Now (keyboard) |
+|---|---|
+| click the loss chart: linear / log axis | `scale [lin\|log]` |
+| hover the loss chart: an epoch's values | `probe [epoch\|off]`: the values, and the probe line on the chart, removed when training continues |
+| hover a neuron: index, label, bias | `neuron [column] [index]`, `neuron off` |
+| drag a splitter | `layout [panel] [percent]`, `layout reset` |
+| wheel / scroll bar on the log | PgUp / PgDn, Ctrl+Home / Ctrl+End |
+| select and copy log text | `copy [lines]` |
+| title bar buttons (still there) | `window [normal\|max\|full\|min]`, `quit` |
+
 ## What each panel shows
 
 How the SPEC's "GUI Layout" requirements map to the panels:

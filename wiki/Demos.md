@@ -39,9 +39,19 @@ delay 150            slow down to watch the weights move; delay 0 = full speed
 weights fc2          statistics of one layer
 predict 0.4 -0.3     spiral demo: which arm does the point belong to?
 epochs 400           extend the run, even after it finished
+probe 50             epoch 50's values, marked on the loss chart (pause first to keep the line)
+scale log            logarithmic loss axis; scale lin goes back
+neuron fc3 2         spiral demo: an output neuron with its arm label and bias
+neuron               the drawn columns of the network view
+layout chart 60      give the loss chart more room; layout reset goes back
+window full          full screen; window normal goes back
+copy 20              copy the last 20 lines of the terminal
 save spiral.pt       write the model's state_dict
 screenshot           save a PNG of the window
 ```
+
+The window is keyboard-only: everything typed goes to the terminal, PgUp / PgDn scroll it,
+and Ctrl+Home / Ctrl+End jump to its top / bottom ([GUI](GUI)).
 
 ## How `predict` is built
 

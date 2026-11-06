@@ -23,6 +23,8 @@ Common options: `--epochs`, `--lr`, `--device` (`auto`, `cpu`, `cuda`, `mps`, ..
 
 ## Things to try in the terminal
 
+The window is keyboard-only: whatever you type goes to the terminal.
+
 ```text
 help                 list every command
 pause / resume       freeze and continue (the window keeps animating)
@@ -32,6 +34,14 @@ delay 150            slow training down to watch the weights move (delay 0 = ful
 weights fc2          statistics of one layer's weights
 predict 0.4 -0.3     (spiral demo) ask the network which arm a point belongs to
 epochs 400           extend a run, even after it has finished
+probe 50             epoch 50's values, marked on the loss chart (pause first to keep the line)
+scale log            logarithmic loss axis (scale lin: back)
+neuron fc3 2         (spiral demo) highlight an output neuron: its arm label and bias
+layout chart 60      give the loss chart more room (layout reset: back)
+window full          full screen (window normal: back)
+copy 20              copy the last 20 lines of the terminal
 save spiral.pt       write the model's state_dict
 screenshot           save a PNG of the window
 ```
+
+PgUp / PgDn scroll the terminal, Ctrl+Home / Ctrl+End jump to its top / bottom.

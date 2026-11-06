@@ -2,7 +2,8 @@
 
 Watch PyTorch networks train in a Hollywood-style native GUI. The real network, its
 real weights changing after every epoch, live loss curves, the complete training
-status, system usage and a command terminal. Your training code stays plain PyTorch.
+status, system usage and a command terminal. The window is driven entirely from the
+keyboard, and your training code stays plain PyTorch.
 
 ![The Hollywood Training window](images/hollywood-training.png)
 

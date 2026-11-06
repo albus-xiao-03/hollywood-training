@@ -44,6 +44,22 @@ The in-process window is also the choice for embedding in an existing Qt applica
 and for frozen executables (PyInstaller and similar), where `sys.executable -m ...`
 cannot start the child.
 
+## There is no mouse pointer in the window
+
+This is by design: the window is driven from the keyboard
+([Pointer Guard](GUI-Pointer-Guard)). The pointer disappears while it is over the window
+and works as usual everywhere else, including the window's title bar. What the mouse did
+before is a command now (`scale`, `probe`, `neuron`, `layout`, `copy`, `window`); see the
+table on the [GUI](GUI) page.
+
+## Typing does not reach the terminal
+
+Keys go to the terminal while the Hollywood Training window is the **active** window.
+Switch to it with the system's window switcher (for example Alt+Tab), or click it once:
+the window manager activates it, and then every key goes to the command line
+([Keyboard Focus](GUI-Keyboard-Focus)). Some desktops keep a newly opened window in the
+background while you type elsewhere.
+
 ## Training is slower with the window open
 
 See [Performance](Performance). In short: start Python with `OMP_NUM_THREADS` set to

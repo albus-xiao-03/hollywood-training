@@ -115,6 +115,23 @@ tracked with default settings.
 Wide layers are sampled: at most `max_neurons` (default 20) neurons are drawn per
 column, and statistics always cover the full tensors.
 
+### Keyboard-driven control
+
+The window is driven entirely from the keyboard. While it is the active window, everything
+you type goes to the command terminal, and there is no mouse pointer inside it. Outside
+the window, the mouse works as usual; the title bar stays the window manager's. What the
+mouse did in earlier versions is a command or a key now:
+
+| Instead of | Type |
+|---|---|
+| clicking the loss chart (linear / log axis) | `scale` (or `scale log`, `scale lin`) |
+| hovering the loss chart | `probe 12`: epoch 12's values, and a vertical line with its losses on the chart (gone when training continues, or `probe off`) |
+| hovering a neuron | `neuron fc1 3` (`neuron` lists the columns, `neuron off` clears) |
+| dragging the splitters | `layout chart 50`, `layout reset` |
+| scrolling the log | PgUp / PgDn, Ctrl+Home / Ctrl+End |
+| selecting log text to copy it | `copy` or `copy 20` (the last 20 lines) |
+| the title bar's buttons | `window max`, `window full`, `window normal`, `window min`, `quit` |
+
 ## Commands
 
 | Command | Effect |
@@ -129,11 +146,11 @@ column, and statistics always cover the full tensors.
 | `delay <ms>` | wait after every epoch (`delay 0` = full speed) |
 | `history [n]` · `arch` · `weights [layer]` | inspect epochs, architecture, weights |
 | `scale [lin\|log]` | loss chart axis: linear or logarithmic (switches without an argument) |
+| `probe [epoch\|off]` | an epoch's values (default: the latest), marked on the loss chart by a vertical line with its losses; the line goes away when training continues, or with `probe off` |
+| `neuron [column] [index]` | highlight a neuron and show its index, label and bias (`neuron` lists the columns, `neuron off` removes it) |
+| `layout [panel] [percent]` | show or change the panel sizes, e.g. `layout chart 50`; `layout reset` restores them |
 | `copy [lines]` | copy the terminal log (or its last lines) to the clipboard |
 | `window [normal\|max\|full\|min]` | window mode from the keyboard (`full`: full screen) |
-| `layout [panel] [percent]` | show or change the panel sizes, e.g. `layout chart 50`; `layout reset` restores them |
-| `neuron [column] [index]` | highlight a neuron and show its index, label and bias (`neuron` lists the columns, `neuron off` removes it) |
-| `probe [epoch\|off]` | an epoch's values (default: the latest), marked on the loss chart by a vertical line with its losses; the line goes away when training continues, or with `probe off` |
 | `save <path>` | `torch.save(model.state_dict(), path)` |
 | `screenshot [path]` · `clear` · `quit` | save a PNG of the window · clear the terminal · stop and close |
 

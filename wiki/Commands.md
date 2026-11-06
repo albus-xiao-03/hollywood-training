@@ -34,6 +34,10 @@ never loads torch through this package. The top-level package exports `ht.Argume
 | in-process window (`isolate_gui=False`) | the window | on the main thread, while the training loop pumps Qt events ([GUI In-Process Frontend](GUI-In-Process-Frontend)) | on the training thread, at the same safe point, right after the pump returns |
 | console (`gui=False`) | no command input | | |
 
+Window-only commands (category `VIEW`) run their handler the same way; the handler then
+hands a [View Request](Commands-View) to the window, which carries it out on the GUI thread
+and, with the window process, writes the answer itself.
+
 Safe points are: before every epoch, after every batch, and inside the manager's waits
 (while paused, while lingering after the last epoch, during the per-epoch delay). Once the
 training thread has exited, an action runs immediately on the handler's thread instead.

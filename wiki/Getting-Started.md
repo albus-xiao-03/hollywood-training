@@ -22,8 +22,9 @@ minimal Linux system, Qt may need extra system libraries; see
 python demos/spiral_classifier.py
 ```
 
-A window opens and trains a small network to separate three spiral arms. Type `help` in
-its terminal. The [Demos](Demos) page lists more things to try.
+A window opens and trains a small network to separate three spiral arms. Everything you
+type in the window goes to its terminal (there is no mouse pointer inside it): type
+`help`. The [Demos](Demos) page lists more things to try.
 
 ## The three steps
 

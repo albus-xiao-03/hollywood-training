@@ -119,9 +119,12 @@ These modules import no torch. The package `__init__` files export torch-depende
 names lazily (PEP 562), so the window process can unpickle events without loading
 PyTorch.
 
-## How the SPEC maps to the code
+## How the specifications map to the code
 
-| SPEC requirement | Where |
+The requirements live in `specs/`: `specs/R1.md` is the original specification (called
+"the SPEC" throughout this wiki), and `specs/R2.md` makes the window keyboard-driven.
+
+| R1 requirement | Where |
 |---|---|
 | 1 automatic architecture and weight tracking (decorator / slot dataclasses) | [Tracking Decorator](Tracking-Decorator), [Tracking Architecture Model](Tracking-Architecture-Model), [Tracking Network Tracker](Tracking-Network-Tracker) |
 | 2 native training steps wrapped into an object passed to a manager | [Training Process](Training-Process), [Runner](Runner), [Training Manager](Training-Manager) |
@@ -136,3 +139,13 @@ PyTorch.
 | 11 demos in `demos/` | [Demos](Demos) |
 | 12 README | `README.md` |
 | 13 wiki | this folder |
+
+| R2 requirement | Where |
+|---|---|
+| 1 no mouse pointer anywhere inside the window | [GUI Pointer Guard](GUI-Pointer-Guard): blank cursor on the window, its native window and every widget |
+| 2 all mouse-based interactions disabled | [GUI Pointer Guard](GUI-Pointer-Guard) swallows pointer events at the native window and at every widget; the mouse code of the [Loss Chart](GUI-Loss-Chart), the [Network View](GUI-Network-View) and the [Theme](GUI-Theme) is gone |
+| 3 every function works without the mouse | the window-only commands ([GUI View Actions](GUI-View-Actions)) and the [terminal](GUI-Terminal) keys; [GUI](GUI) has the mouse-to-keyboard table |
+| 4 commands may replace mouse interactions | `scale`, `probe`, `neuron`, `layout`, `copy`, `window` ([Commands](Commands), category VIEW), through [View Requests](Commands-View) |
+| 5 R1 features unaffected | tracking, training, synchronisation and the epoch hand-off are unchanged; only input handling changed |
+| 6 pointer and mouse outside the window unaffected | everything is per window: no override cursor, no application-wide filter, no grabs; the native title bar keeps its mouse ([Pointer Guard](GUI-Pointer-Guard), [Keyboard Focus](GUI-Keyboard-Focus)) |
+| 7 keyboard input goes to the terminal while the user stays on the window | [GUI Keyboard Focus](GUI-Keyboard-Focus) |

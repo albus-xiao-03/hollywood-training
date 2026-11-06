@@ -28,6 +28,10 @@ chosen, so the GUI tests run headless and in CI.
 | `tests/test_monitor_console.py` | usage sampling, formatting, `run(gui=False)`, `TrainingFailedError` |
 | `tests/test_gui.py` | widgets, the main window, terminal input and completion, screenshots, the **in-process frontend drawing every epoch before acknowledging**, commands driving a run, the **window process end to end**, IPC commands and screenshots, start-up failure |
 | `tests/test_demos.py` | both demos, console and GUI, as subprocesses |
+| `tests/test_keyboard_focus.py` | keyboard-driven control: the command line as the only focus target, Tab / Shift+Tab, focus hand-back, keys forwarded from panels, the window and the window system, other windows unaffected |
+| `tests/test_pointer_guard.py` | no pointer and no pointer input inside the window: blank cursors, mouse / wheel / drag / context menu / tooltip / drop swallowed at the native window and at widgets, widgets added later, no mouse code in the panels or the theme, a window outside unaffected |
+| `tests/test_view_requests.py` | the window-only command channel: `ViewRequest` through both frontends, the link and the window process |
+| `tests/test_view_commands.py` | `scale`, `probe` (with the probe line and its removal when training continues, also in a real run), `neuron`, `layout`, `copy` and `window` |
 
 ## Style
 
