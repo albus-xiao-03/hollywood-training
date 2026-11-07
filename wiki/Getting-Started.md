@@ -46,10 +46,11 @@ model = ht.track(nn.Sequential(nn.Linear(1, 8), nn.Tanh(), nn.Linear(8, 1)), nam
 ```
 
 The architecture is read from `named_modules()` and refined by observing the first
-forward pass, through PyTorch's forward hooks. Linear, convolution, transposed
-convolution and embedding layers are drawn as connections. Activations, normalisation,
-dropout, pooling and reshape layers appear as labels between them. See
-[Tracking](Tracking).
+forward pass, through PyTorch's forward hooks. Every layer with a weight matrix is drawn
+as connections: linear, convolution, transposed convolution, embedding, bilinear,
+recurrent and attention layers, and your own modules with weight parameters.
+Activations, normalisation, dropout, pooling and reshape layers appear as labels between
+them. See [Tracking](Tracking).
 
 ### 2. Wrap your training process
 

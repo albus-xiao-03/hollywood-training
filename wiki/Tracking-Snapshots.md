@@ -5,15 +5,16 @@
 This module takes the per-epoch copies of the weights a frontend draws. It reduces every
 connection layer to a **connection matrix** shaped `(out, in)`, keeps at most `limit`
 evenly spaced neurons per side, and copies the result into read-only CPU numpy arrays. It
-also computes statistics on the full weight tensor and the change since a previous
-snapshot. The result is a [WeightSnapshot](Tracking-Weight-Data) that can be handed to
+also computes statistics on the full weight tensor and on every weight tensor of the
+layer, and the change since a previous snapshot. The result is a [WeightSnapshot](Tracking-Weight-Data) that can be handed to
 another thread while training continues.
 
 ## Responsibilities
 
 * Turn any supported weight layout into an `(out, in)` matrix (`connection_matrix`).
 * Sample, copy and freeze one layer (`capture_layer`) or all layers (`capture`).
-* Compute `WeightStats` on the full tensor (`weight_stats`).
+* Compute `WeightStats` on the full tensor (`weight_stats`), and `TensorStats` for every
+  weight tensor of a layer (`tensor_stats`).
 * Compute `delta` and `update_ratio` against a previous snapshot.
 
 ## API
@@ -26,15 +27,16 @@ def connection_matrix(
 
 Returns the connection matrix of `module`, restricted to the given indices, as a float32
 tensor of shape `(len(out_index), len(in_index))` on the weight's device. Returns `None`
-when the module has no initialised `weight` parameter, or a layout not listed here. Entry
-`[j, i]` says how strongly input `in_index[i]` feeds output `out_index[j]`:
+when the module has no weight tensor (yet). The matrix is read from `primary_weight(module)`
+([Tracking Layer Classification](Tracking-Layer-Classification)). Entry `[j, i]` says how
+strongly input `in_index[i]` feeds output `out_index[j]`:
 
 | Module (checked in this order) | PyTorch weight layout | Connection matrix |
 |---|---|---|
 | `Embedding`, `EmbeddingBag` | `(num_embeddings, embedding_dim)` | the transposed table, `(embedding_dim, num_embeddings)` |
 | `ConvTranspose1d/2d/3d` | `(in, out / groups, *kernel)` | signed mean over the kernel window, block-diagonal for groups, transposed back to `(out, in)` |
 | `Conv1d/2d/3d` | `(out, in / groups, *kernel)` | signed mean over the kernel window. Channel pairs in different groups are `0` |
-| any other 2-D weight (`Linear`, linear-like) | `(out, in)` | the weight itself |
+| any other weight owner (`Linear`, linear-like, and any module with a weight tensor) | `(out, in, ...)` | the tensor itself when it is 2-D, otherwise its signed mean over the dimensions after the first two |
 
 ```python
 def capture_layer(
@@ -42,7 +44,7 @@ def capture_layer(
 ) -> LayerWeights | None
 ```
 
-Snapshots one layer. Returns `None` when the module's weight is missing or uninitialised,
+Snapshots one layer. Returns `None` when the module has no initialised weight tensor,
 when the `TrackedLayer` has no `in_features` / `out_features`, or when
 `connection_matrix` returns `None`. When the weight and both sizes are known, `limit < 1`
 raises `ValueError` from `display_indices`. `previous` is this layer in an earlier
@@ -64,11 +66,18 @@ returned a value, in architecture order.
 
 ```python
 def weight_stats(weight: torch.Tensor) -> WeightStats
+def tensor_stats(
+    module: nn.Module, known: dict[int, WeightStats] | None = None
+) -> tuple[TensorStats, ...]
 ```
 
 Statistics of the full tensor: detached, converted to float32 when needed, and reduced
 on the tensor's own device. `std` uses `correction=0`, and `norm` is
 `torch.linalg.vector_norm`. An empty tensor gives `WeightStats(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0)`.
+
+`tensor_stats` returns one `TensorStats(name, shape, stats)` for every weight tensor the
+module holds (`weight_tensors`, in registration order). `known` maps `id(tensor)` to
+statistics already computed, which are reused instead of computed again.
 
 ## How it works
 
@@ -80,8 +89,10 @@ on the tensor's own device. `std` uses `correction=0`, and `norm` is
    to the CPU (at most `limit × limit` entries). The copy is
    `tensor.detach().to(device="cpu", dtype=torch.float32).numpy().copy()`, then made
    read-only.
-3. The bias is read when `module.bias` is an initialised tensor, at `out_index`, and
-   copied the same way. `stats = weight_stats(weight)` uses the whole weight.
+3. The bias is read when `module.bias` is an initialised vector with one entry per output
+   feature, at `out_index`, and copied the same way. `stats = weight_stats(weight)` uses
+   the whole primary weight. `tensors = tensor_stats(module)` adds the statistics of every
+   weight tensor of the layer, reusing `stats` for the primary weight.
 4. `delta` and `update_ratio` are computed only when `previous` has the same matrix shape
    and identical `in_index` and `out_index`. Then `delta = matrix - previous.matrix`
    (read-only) and `update_ratio = norm(delta) / (norm(previous.matrix) + 1e-12)`.
@@ -96,14 +107,14 @@ pair when both groups match, and `0` otherwise. A depthwise convolution
 
 ## Used by / uses
 
-* Uses [Tracking Layer Classification](Tracking-Layer-Classification) (`weight_of`,
-  `is_uninitialized`, the convolution and embedding class tuples),
+* Uses [Tracking Layer Classification](Tracking-Layer-Classification) (`primary_weight`,
+  `weight_tensors`, `is_uninitialized`, the convolution and embedding class tuples),
   [Tracking Weight Data](Tracking-Weight-Data) (data classes, `display_indices`,
   `DEFAULT_NEURON_LIMIT`) and [Tracking Architecture Model](Tracking-Architecture-Model).
 * [Tracking Network Tracker](Tracking-Network-Tracker): `NetworkTracker.snapshot()` calls
   `capture` with its `max_neurons` and its baseline.
-* Lazily exported: `capture`, `capture_layer`, `connection_matrix`. `weight_stats` is only
-  available from this module.
+* Lazily exported: `capture`, `capture_layer`, `connection_matrix`. `weight_stats` and
+  `tensor_stats` are only available from this module.
 
 ## Example
 

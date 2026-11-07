@@ -2,7 +2,7 @@
 
 `hollywood_training/tracking/roles.py` · part of [Tracking](Tracking)
 
-`LayerRole` names what a leaf module contributes to the drawn network: a weight matrix
+`LayerRole` names what a module contributes to the drawn network: a weight matrix
 between two columns of neurons, an operation listed under a layer, or nothing that can be
 drawn. It has its own module that imports only `enum`. `OperationInfo.role` holds a
 `LayerRole`, so this lets the window process, which imports no torch, unpickle an
@@ -33,13 +33,13 @@ class LayerRole(str, Enum):
 
 | Member | Assigned by `classify()` to ([Tracking Layer Classification](Tracking-Layer-Classification)) | Effect in `build_architecture()` |
 |---|---|---|
-| `CONNECTION` | `Linear`, `Conv1d/2d/3d`, `ConvTranspose1d/2d/3d`, `Embedding`, `EmbeddingBag` and their subclasses. Also any module outside the lists below that owns an initialised 2-D `weight` parameter | becomes a `TrackedLayer`, a set of connections in the drawing |
+| `CONNECTION` | `Linear`, `Conv1d/2d/3d`, `ConvTranspose1d/2d/3d`, `Embedding`, `EmbeddingBag` and their subclasses. Also any module outside the lists below that holds a weight tensor (an initialised parameter with two or more dimensions): `Bilinear`, `RNN`, `LSTM`, `GRU`, `MultiheadAttention`, custom modules | becomes a `TrackedLayer`, a set of connections in the drawing |
 | `ACTIVATION` | `ReLU`, `GELU`, `Tanh`, `Softmax`, ... (28 class names) | `LayerOperation` attached to the current layer |
 | `NORMALIZATION` | `BatchNorm*`, `LayerNorm`, `GroupNorm`, `RMSNorm`, ... (12 class names) | `LayerOperation` |
 | `REGULARIZATION` | `Dropout`, `Dropout1d/2d/3d`, `AlphaDropout`, `FeatureAlphaDropout` | `LayerOperation` |
 | `POOLING` | `MaxPool*`, `AvgPool*`, `AdaptiveMaxPool*`, `AdaptiveAvgPool*`, `LPPool*`, `FractionalMaxPool*` | `LayerOperation` |
 | `RESHAPE` | `Flatten`, `Unflatten`, `Upsample`, `PixelShuffle`, `PixelUnshuffle` | `LayerOperation` |
-| `OTHER` | everything else, e.g. `nn.LSTM`, `nn.Bilinear` | label added to `unsupported`, not drawn |
+| `OTHER` | everything else: modules without a weight tensor, e.g. `nn.ZeroPad2d`, `nn.CosineSimilarity` | label added to `unsupported`, not drawn |
 
 The five operation roles are collected in `OPERATION_ROLES` (a `frozenset` in
 `layers.py`). An operation attaches to the most recent connection layer in the module
@@ -86,6 +86,6 @@ info = build_architecture(model).describe()
 
 * A role states what the module contributes to the drawing: `Softmax` is an activation,
   `Upsample` a reshape.
-* A role comes from the module's class, or for custom modules from a 2-D `weight`. It is
-  never read from `forward`. An activation written as a function (`torch.relu(x)`) is not
-  a module, so it has no role and does not appear.
+* A role comes from the module's class, or for other modules from their weight tensors.
+  It is never read from `forward`. An activation written as a function (`torch.relu(x)`)
+  is not a module, so it has no role and does not appear.

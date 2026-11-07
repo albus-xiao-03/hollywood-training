@@ -119,9 +119,9 @@ class NetworkArchitecture:
 | `unsupported` | labels of leaf modules with role `OTHER`, without repeats |
 | `total_parameters`, `trainable_parameters` | initialised parameter elements of the whole network, and of those with `requires_grad` |
 | `traced` | `True` when built from an explicit `order`, i.e. a recorded forward pass |
-| `name` (layer, operation) | qualified module name such as `enc.0`, or the class name when the model itself is the leaf |
+| `name` (layer, operation) | qualified module name such as `enc.0`, or the class name when the model itself is the leaf or the weight owner |
 | `summary`, `in_features`, `out_features` | `summarize()` and `connection_shape()` ([Tracking Layer Classification](Tracking-Layer-Classification)) |
-| `parameters` (layer) | initialised parameter elements of that module (weight and bias) |
+| `parameters` (layer) | initialised parameter elements of that module (weight and bias). A weight owner with children counts only the parameters it holds itself |
 | `operations` (layer) | operations applied to its output, in execution order |
 
 ## Used by / uses
@@ -143,13 +143,13 @@ from torch import nn
 from hollywood_training.tracking import build_architecture
 
 model = nn.Sequential(nn.Flatten(), nn.Linear(4, 8), nn.BatchNorm1d(8), nn.ReLU(),
-                      nn.Linear(8, 2), nn.LSTM(2, 2))
+                      nn.Linear(8, 2), nn.ZeroPad1d(1))
 info = build_architecture(model).describe()     # NetworkArchitecture -> ArchitectureInfo
 [layer.summary for layer in info.layers]        # ['Linear 4→8', 'Linear 8→2']
 [op.summary for op in info.input_operations]    # ['Flatten']
 info.layers[0].activation                       # 'ReLU'
 info.normalization_summary()                    # 'BatchNorm1d'
-info.unsupported                                # ('5',): the LSTM is not drawn
+info.unsupported                                # ('5',): the padding is not drawn
 ```
 
 ## Notes

@@ -3,6 +3,12 @@
 Only public ``torch.nn`` classes are consulted. They are looked up by name, so classes that
 exist only in newer PyTorch releases (for example ``nn.RMSNorm``) are used when present and
 skipped otherwise.
+
+A **weight tensor** is an initialised parameter with two or more dimensions that a module
+holds directly. Any module that holds one and is not an operation class (activation,
+normalisation, regularisation, pooling, reshape) is a connection layer, a **weight owner**:
+``nn.Bilinear``, the recurrent layers, ``nn.MultiheadAttention`` (which also has a child)
+and custom modules. So every weight matrix of a network belongs to a connection layer.
 """
 
 from __future__ import annotations
@@ -86,13 +92,33 @@ def has_weight_matrix(module: nn.Module) -> bool:
     return weight is not None and weight.dim() == 2
 
 
+def weight_tensors(module: nn.Module) -> list[tuple[str, nn.Parameter]]:
+    """``(name, parameter)`` for every weight tensor the module holds directly: each
+    initialised parameter with two or more dimensions, in registration order."""
+    return [
+        (name, parameter)
+        for name, parameter in module.named_parameters(recurse=False)
+        if not is_uninitialized(parameter) and parameter.dim() >= 2
+    ]
+
+
+def primary_weight(module: nn.Module) -> nn.Parameter | None:
+    """The tensor a connection layer is drawn from: its ``weight`` when that has two or
+    more dimensions, otherwise its first weight tensor; ``None`` while it has none."""
+    weight = weight_of(module)
+    if weight is not None and weight.dim() >= 2:
+        return weight
+    tensors = weight_tensors(module)
+    return tensors[0][1] if tensors else None
+
+
 def is_pass_through(module: nn.Module) -> bool:
     """Modules that do nothing (``nn.Identity``) and are left out of the drawing."""
     return isinstance(module, PASS_THROUGH_LAYERS)
 
 
 def classify(module: nn.Module) -> LayerRole:
-    """Return the :class:`LayerRole` of a leaf module."""
+    """Return the :class:`LayerRole` of a module (a leaf, or a weight owner with children)."""
     if isinstance(module, CONNECTION_LAYERS):
         return LayerRole.CONNECTION
     if isinstance(module, ACTIVATION_LAYERS):
@@ -105,14 +131,14 @@ def classify(module: nn.Module) -> LayerRole:
         return LayerRole.POOLING
     if isinstance(module, RESHAPE_LAYERS):
         return LayerRole.RESHAPE
-    if has_weight_matrix(module):  # custom linear-like modules
+    if weight_tensors(module):  # any other weight owner: recurrent, attention, custom, ...
         return LayerRole.CONNECTION
     return LayerRole.OTHER
 
 
 def connection_shape(module: nn.Module) -> tuple[int | None, int | None]:
     """``(in_features, out_features)`` of a connection layer; ``None`` while still unknown."""
-    weight = weight_of(module)
+    weight = primary_weight(module)
     if weight is None:
         return None, None
     if isinstance(module, EMBEDDING_LAYERS):
@@ -120,10 +146,8 @@ def connection_shape(module: nn.Module) -> tuple[int | None, int | None]:
         return int(num_embeddings), int(embedding_dim)
     if isinstance(module, CONVOLUTION_LAYERS + TRANSPOSED_CONVOLUTION_LAYERS):
         return int(module.in_channels), int(module.out_channels)
-    if weight.dim() == 2:
-        out_features, in_features = weight.shape
-        return int(in_features), int(out_features)
-    return None, None
+    # Linear and any other weight owner: the tensor is read as (out, in, ...)
+    return int(weight.shape[1]), int(weight.shape[0])
 
 
 def _kernel_text(kernel: object) -> str:

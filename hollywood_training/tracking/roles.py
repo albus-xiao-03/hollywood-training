@@ -6,7 +6,7 @@ from enum import Enum
 
 
 class LayerRole(str, Enum):
-    """What a leaf module contributes to the drawn network."""
+    """What a module contributes to the drawn network."""
 
     CONNECTION = "connection"  # owns a weight matrix linking input features to output features
     ACTIVATION = "activation"

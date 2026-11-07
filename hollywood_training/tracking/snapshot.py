@@ -8,11 +8,14 @@ Every connection layer is reduced to a **connection matrix** shaped ``(out, in)`
   convolutions (unconnected channel pairs are 0).
 * ``ConvTranspose*``: the same, transposed back to ``(out, in)``.
 * ``Embedding`` / ``EmbeddingBag``: the transposed table, ``(embedding_dim, num_embeddings)``.
+* Any other weight owner: its primary weight tensor read as ``(out, in, ...)``, with the
+  signed mean over the remaining dimensions.
 
 At most ``limit`` neurons per side are kept (evenly spaced indices, recorded in the
 snapshot) so that very wide layers stay drawable. Statistics (:class:`WeightStats`) are
-always computed on the **full** weight tensor. Arrays in a snapshot are read-only copies
-on the CPU, so a snapshot can be handed to another thread while training continues.
+always computed on the **full** weight tensor, and on every weight tensor of the layer
+(:class:`TensorStats`). Arrays in a snapshot are read-only copies on the CPU, so a snapshot
+can be handed to another thread while training continues.
 """
 
 from __future__ import annotations
@@ -29,11 +32,13 @@ from .layers import (
     EMBEDDING_LAYERS,
     TRANSPOSED_CONVOLUTION_LAYERS,
     is_uninitialized,
-    weight_of,
+    primary_weight,
+    weight_tensors,
 )
 from .weights import (
     DEFAULT_NEURON_LIMIT,
     LayerWeights,
+    TensorStats,
     WeightSnapshot,
     WeightStats,
     display_indices,
@@ -90,7 +95,7 @@ def connection_matrix(
     module: nn.Module, in_index: np.ndarray, out_index: np.ndarray
 ) -> torch.Tensor | None:
     """Connection matrix of ``module`` restricted to the given indices, shape ``(out, in)``."""
-    weight = weight_of(module)
+    weight = primary_weight(module)
     if weight is None:
         return None
     weight = weight.detach()
@@ -112,9 +117,35 @@ def connection_matrix(
         out_pg = int(module.out_channels) // groups
         in_pg = int(module.in_channels) // groups
         return _grouped(block, rows_out, cols_in, out_pg, in_pg)
-    if weight.dim() == 2:  # Linear and linear-like: (out, in)
-        return weight.index_select(0, rows_out).index_select(1, cols_in).float()
-    return None
+    # Linear and any other weight owner: (out, in, ...), averaged over the other dimensions
+    return _kernel_mean(weight.index_select(0, rows_out).index_select(1, cols_in))
+
+
+def _sampled_bias(module: nn.Module, out_index: np.ndarray, out_features: int) -> np.ndarray | None:
+    """The module's ``bias`` at ``out_index``, when it is a vector with one entry per output."""
+    bias = getattr(module, "bias", None)
+    if not isinstance(bias, torch.Tensor) or is_uninitialized(bias):
+        return None
+    if bias.dim() != 1 or bias.shape[0] != out_features:
+        return None
+    index = torch.as_tensor(out_index, dtype=torch.long, device=bias.device)
+    return _to_numpy(bias.detach().index_select(0, index))
+
+
+def tensor_stats(
+    module: nn.Module, known: dict[int, WeightStats] | None = None
+) -> tuple[TensorStats, ...]:
+    """:class:`TensorStats` of every weight tensor ``module`` holds; ``known`` maps
+    ``id(tensor)`` to statistics computed already, which are reused."""
+    known = known or {}
+    return tuple(
+        TensorStats(
+            name=name,
+            shape=tuple(int(size) for size in tensor.shape),
+            stats=known[id(tensor)] if id(tensor) in known else weight_stats(tensor),
+        )
+        for name, tensor in weight_tensors(module)
+    )
 
 
 def capture_layer(
@@ -122,7 +153,7 @@ def capture_layer(
 ) -> LayerWeights | None:
     """Snapshot one layer; ``None`` while its parameters are still uninitialised."""
     in_features, out_features = layer.in_features, layer.out_features
-    weight = weight_of(layer.module)
+    weight = primary_weight(layer.module)
     if weight is None or in_features is None or out_features is None:
         return None
     in_index = display_indices(in_features, limit)
@@ -132,12 +163,9 @@ def capture_layer(
         if matrix_tensor is None:
             return None
         matrix = _to_numpy(matrix_tensor)
-        bias_parameter = getattr(layer.module, "bias", None)
-        bias = None
-        if isinstance(bias_parameter, torch.Tensor) and not is_uninitialized(bias_parameter):
-            index = torch.as_tensor(out_index, dtype=torch.long, device=bias_parameter.device)
-            bias = _to_numpy(bias_parameter.detach().index_select(0, index))
+        bias = _sampled_bias(layer.module, out_index, out_features)
         stats = weight_stats(weight)
+        tensors = tensor_stats(layer.module, {id(weight): stats})
 
     delta = None
     update_ratio = None
@@ -161,6 +189,7 @@ def capture_layer(
         out_features=out_features,
         stats=stats,
         update_ratio=update_ratio,
+        tensors=tensors,
     )
 
 

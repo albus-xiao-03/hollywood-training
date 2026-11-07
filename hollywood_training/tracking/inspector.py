@@ -1,13 +1,17 @@
 """Build a :class:`NetworkArchitecture` from a module.
 
-Two sources of layer order are supported, both through official PyTorch APIs:
+The modules that can take part in the drawing are the leaf modules plus every **weight
+owner** with children - a module such as ``nn.MultiheadAttention`` that holds a weight
+tensor itself (:func:`static_order`). Two sources of their order are supported, both
+through official PyTorch APIs:
 
 * **static**: the registration order reported by ``named_modules()``. Available
   immediately, right for most ``__init__``-then-``forward`` models.
-* **traced**: the order in which leaf modules actually ran during one forward pass,
-  recorded with ``register_forward_hook`` by :class:`ForwardTrace`. This catches modules
-  that are registered in a different order than they run, activation modules that are
-  reused, and the shapes of lazy modules.
+* **traced**: the order in which those modules actually ran during one forward pass,
+  recorded with ``register_forward_hook`` (``register_forward_pre_hook`` for weight owners
+  with children) by :class:`ForwardTrace`. This catches modules that are registered in a
+  different order than they run, activation modules that are reused, and the shapes of
+  lazy modules.
 
 Wrappers are looked through (:func:`unwrap`): ``nn.DataParallel``,
 ``DistributedDataParallel`` and the ``OptimizedModule`` that ``torch.compile`` returns. The
@@ -63,20 +67,39 @@ def unwrap(model: nn.Module) -> nn.Module:
             return model
 
 
+def _has_children(module: nn.Module) -> bool:
+    return next(module.children(), None) is not None
+
+
 def leaf_modules(model: nn.Module) -> list[tuple[str, nn.Module]]:
     """``(qualified_name, module)`` for every module without children, in registration order."""
     return [
         (name, module)
         for name, module in unwrap(model).named_modules()
-        if next(module.children(), None) is None
+        if not _has_children(module)
     ]
 
 
-def count_parameters(module: nn.Module, *, trainable_only: bool = False) -> int:
-    """Number of (initialised) parameter elements in ``module``."""
+def static_order(model: nn.Module) -> list[tuple[str, nn.Module]]:
+    """``(qualified_name, module)`` for every module that can take part in the drawing, in
+    registration order: each leaf module, and each module with children that is a
+    connection layer itself - a weight owner such as ``nn.MultiheadAttention``, which holds
+    ``in_proj_weight`` next to its ``out_proj`` child. A parent comes before its children."""
+    return [
+        (name, module)
+        for name, module in unwrap(model).named_modules()
+        if not _has_children(module) or classify(module) is LayerRole.CONNECTION
+    ]
+
+
+def count_parameters(
+    module: nn.Module, *, trainable_only: bool = False, recurse: bool = True
+) -> int:
+    """Number of (initialised) parameter elements in ``module`` - with ``recurse=False``,
+    only those it holds itself, not those of its children."""
     return sum(
         parameter.numel()
-        for parameter in module.parameters()
+        for parameter in module.parameters(recurse=recurse)
         if not is_uninitialized(parameter) and (parameter.requires_grad or not trainable_only)
     )
 
@@ -86,17 +109,17 @@ def build_architecture(
     options: TrackOptions | None = None,
     order: ModuleSequence | None = None,
 ) -> NetworkArchitecture:
-    """Group the leaf modules of ``model`` into connection layers and their operations.
+    """Group the modules of ``model`` into connection layers and their operations.
 
     Args:
         model: the network (wrappers such as ``nn.DataParallel`` are looked through).
         options: display options declared with ``@track``.
         order: explicit ``(name, module)`` execution order, e.g. from :class:`ForwardTrace`.
-            Defaults to the static registration order.
+            Defaults to the static registration order (:func:`static_order`).
     """
     network = unwrap(model)
     options = options or TrackOptions()
-    sequence = order if order is not None else leaf_modules(network)
+    sequence = order if order is not None else static_order(network)
 
     layers: list[TrackedLayer] = []
     input_operations: list[LayerOperation] = []
@@ -121,7 +144,9 @@ def build_architecture(
                 summary=summarize(module),
                 in_features=in_features,
                 out_features=out_features,
-                parameters=count_parameters(module),
+                # a weight owner with children counts its own parameters: those of a child
+                # that is a layer itself (MultiheadAttention.out_proj) count there
+                parameters=count_parameters(module, recurse=not _has_children(module)),
             )
             layers.append(current)
         elif role in OPERATION_ROLES:
@@ -165,11 +190,13 @@ def architecture_signature(architecture: NetworkArchitecture) -> tuple:
 
 
 class ForwardTrace:
-    """Record the leaf modules that run, in order, during the next forward pass.
+    """Record the modules that run, in order, during the next forward pass.
 
-    Uses ``register_forward_hook`` on every leaf module plus one on the root module to
-    know when the first complete forward pass has finished; later passes are ignored.
-    Call :meth:`start` before the forward pass and :meth:`stop` afterwards.
+    Uses ``register_forward_hook`` on every leaf module and ``register_forward_pre_hook``
+    on every weight owner with children (recorded where its forward begins, before the
+    children it calls), plus one forward hook on the root module to know when the first
+    complete forward pass has finished; later passes are ignored. Call :meth:`start`
+    before the forward pass and :meth:`stop` afterwards.
     """
 
     def __init__(self, model: nn.Module) -> None:
@@ -187,19 +214,58 @@ class ForwardTrace:
             return
         self._calls.clear()
         self.complete = False
-        for name, module in leaf_modules(self._model):
-            self._handles.append(module.register_forward_hook(self._recorder(name)))
+        for name, module in static_order(self._model):
+            if _has_children(module):  # a weight owner: recorded before its children run
+                handle = module.register_forward_pre_hook(self._recorder(name))
+            else:
+                handle = module.register_forward_hook(self._recorder(name))
+            self._handles.append(handle)
         self._handles.append(self._model.register_forward_hook(self._on_root_finished))
 
     def stop(self) -> list[tuple[str, nn.Module]]:
-        """Remove the hooks and return the recorded ``(name, module)`` calls."""
+        """Remove the hooks and return the recorded ``(name, module)`` calls, with the
+        connection layers a parent used without calling them (:meth:`_with_unrun_layers`)."""
         for handle in self._handles:
             handle.remove()
         self._handles.clear()
-        return list(self._calls)
+        return self._with_unrun_layers(list(self._calls))
+
+    def _with_unrun_layers(self, calls: list[tuple[str, nn.Module]]) -> list[tuple[str, nn.Module]]:
+        """Place each connection layer that did not run right after its parent's first call,
+        when that parent is a weight owner that ran.
+
+        ``nn.MultiheadAttention`` hands ``out_proj.weight`` to the functional attention and
+        never calls ``out_proj``, whose weights are used all the same. Every other module
+        that did not run stays out of the traced order.
+        """
+        ran = {id(module) for _name, module in calls}
+        modules = dict(self._model.named_modules())
+        placed: dict[int, list[tuple[str, nn.Module]]] = {}  # parent -> layers placed after it
+        for name, module in static_order(self._model):  # parents before their children
+            if not name or id(module) in ran or classify(module) is not LayerRole.CONNECTION:
+                continue
+            parent = modules.get(name.rpartition(".")[0])
+            if parent is None or id(parent) not in ran:
+                continue
+            if classify(parent) is not LayerRole.CONNECTION:
+                continue
+            placed.setdefault(id(parent), []).append((name, module))
+            ran.add(id(module))
+        if not placed:
+            return calls
+        ordered: list[tuple[str, nn.Module]] = []
+
+        def emit(name: str, module: nn.Module) -> None:
+            ordered.append((name, module))
+            for item in placed.pop(id(module), ()):  # after the parent's first call only
+                emit(*item)
+
+        for name, module in calls:
+            emit(name, module)
+        return ordered
 
     def _recorder(self, name: str):
-        def record(module: nn.Module, _inputs: object, _output: object) -> None:
+        def record(module: nn.Module, *_hook_arguments: object) -> None:
             if not self.complete:
                 self._calls.append((name, module))
 

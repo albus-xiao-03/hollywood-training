@@ -81,11 +81,14 @@ command) always cover the full tensors. Raise the limit with
 
 ## A layer is missing from the drawing
 
-Only connection layers (`Linear`, `Conv*`, `ConvTranspose*`, `Embedding`, and modules
-with a 2-D `weight`) are drawn as connections. Other leaf modules, such as RNNs, are
-listed under "not drawn" in the terminal at start-up, and by the `arch` command.
-Activations written as functions (`F.relu(x)`) instead of modules (`nn.ReLU()`) cannot be
-seen through module hooks, so they don't appear as badges. See
+Every module that holds a weight tensor (a parameter with two or more dimensions) is
+drawn as connections: `Linear`, `Conv*`, `ConvTranspose*`, `Embedding`, `Bilinear`,
+recurrent and attention layers, and your own modules with such parameters. Modules
+without weights that are not activations, normalisation, dropout, pooling or reshape
+layers (padding, for example) are listed under "not drawn" in the terminal at start-up,
+and by the `arch` command. Activations written as functions (`F.relu(x)`) instead of
+modules (`nn.ReLU()`) cannot be seen through module hooks, so they don't appear as
+badges. Tensors that are not parameters of a module are not tracked. See
 [Tracking Layer Classification](Tracking-Layer-Classification).
 
 ## `run()` raised `TrainingFailedError`

@@ -26,6 +26,16 @@ class WeightStats:
     count: int
 
 
+@dataclass(frozen=True, slots=True)
+class TensorStats:
+    """One weight tensor of a layer: its parameter name, its shape and the statistics of
+    its full content."""
+
+    name: str  # the parameter's name in its module, e.g. "weight" or "in_proj_weight"
+    shape: tuple[int, ...]
+    stats: WeightStats
+
+
 @dataclass(frozen=True, slots=True, eq=False)
 class LayerWeights:
     """Displayed connection matrix of one layer at one point in time."""
@@ -38,8 +48,9 @@ class LayerWeights:
     out_index: np.ndarray  # displayed output feature indices
     in_features: int
     out_features: int
-    stats: WeightStats
+    stats: WeightStats  # of the full tensor `matrix` is drawn from
     update_ratio: float | None  # ||delta|| / ||previous matrix||
+    tensors: tuple[TensorStats, ...] = ()  # every weight tensor of the layer
 
     @property
     def truncated(self) -> bool:

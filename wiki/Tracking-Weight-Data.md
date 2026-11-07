@@ -42,6 +42,18 @@ Summary statistics of the **full** weight tensor, not just the displayed part.
 elements, and `count` is the number of elements. An empty tensor gives all zeros.
 
 ```python
+@dataclass(frozen=True, slots=True)
+class TensorStats:
+    name: str
+    shape: tuple[int, ...]
+    stats: WeightStats
+```
+
+One weight tensor of a layer: the parameter's name in its module (`weight`,
+`in_proj_weight`, `weight_hh_l0`, ...), its full shape, and the `WeightStats` of its full
+content. It compares by value.
+
+```python
 @dataclass(frozen=True, slots=True, eq=False)
 class LayerWeights:
     name: str
@@ -52,8 +64,9 @@ class LayerWeights:
     out_index: np.ndarray  # displayed output feature indices
     in_features: int
     out_features: int
-    stats: WeightStats
+    stats: WeightStats  # of the full tensor `matrix` is drawn from
     update_ratio: float | None  # ||delta|| / ||previous matrix||
+    tensors: tuple[TensorStats, ...] = ()  # every weight tensor of the layer
 
     @property
     def truncated(self) -> bool: ...
@@ -67,8 +80,9 @@ class LayerWeights:
 | `delta` | `matrix` minus the same layer's matrix in the baseline snapshot. `None` when there is no baseline for the layer, or the displayed indices differ |
 | `in_index`, `out_index` | sorted `int64` feature indices that are displayed |
 | `in_features`, `out_features` | full layer sizes |
-| `stats` | `WeightStats` of the full weight tensor |
+| `stats` | `WeightStats` of the full tensor `matrix` is drawn from (the layer's `weight` for `Linear`, convolution and embedding layers) |
 | `update_ratio` | `norm(delta) / (norm(previous.matrix) + 1e-12)`, Frobenius norms of the displayed matrices. `None` together with `delta` |
+| `tensors` | `TensorStats` of every weight tensor of the layer, in registration order: one (`weight`) for `Linear`, convolution and embedding layers, more for recurrent and attention layers. A snapshot made without them leaves the default `()` |
 
 `truncated` is `True` when fewer indices than features are displayed on either side.
 
@@ -137,6 +151,7 @@ hidden.matrix.shape, output.matrix.shape     # (8, 3), (2, 8)
 hidden.out_index.tolist()                    # [0, 4, 8, 12, 17, 21, 25, 29] = output.in_index
 hidden.truncated, hidden.stats.count         # True, 90: stats cover all 30 x 3 weights
 hidden.delta, hidden.update_ratio            # None, None: no baseline yet
+[(t.name, t.shape) for t in hidden.tensors]  # [('weight', (30, 3))]
 ```
 
 ## Notes
