@@ -107,7 +107,9 @@ def resolve_steps(self) -> ProcessSteps
 ```
 
 Returns the steps to run, or raises `ProcessError` (table below). `repr(process)` gives,
-for example, `TrainingProcess(model=SmallNet, epochs=3, validation=yes)`.
+for example, `TrainingProcess(model=SmallNet, epochs=3, validation=yes)`. It names the
+user's network class, also when the model is wrapped in `nn.DataParallel` or compiled
+with `torch.compile` (see `unwrap` in [Tracking Inspector](Tracking-Inspector)).
 
 ## How it works
 

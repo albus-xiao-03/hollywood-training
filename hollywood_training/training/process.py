@@ -37,6 +37,7 @@ from torch import nn
 
 from ..commands.registry import Argument, Command, Handler
 from ..sync.events import EpochRecord
+from ..tracking.inspector import unwrap
 from .steps import StepFunction, supervised_train_step, supervised_validation_step
 
 EpochHook = Callable[[EpochRecord], None]
@@ -268,8 +269,7 @@ class TrainingProcess:
         return ProcessSteps(train, validation, tuple(self._epoch_hooks))
 
     def __repr__(self) -> str:
+        # the user's network, also inside DataParallel or torch.compile's wrapper
+        network = type(unwrap(self._model)).__name__
         validation = "yes" if self._val_data is not None else "no"
-        return (
-            f"TrainingProcess(model={type(self._model).__name__}, epochs={self._epochs}, "
-            f"validation={validation})"
-        )
+        return f"TrainingProcess(model={network}, epochs={self._epochs}, validation={validation})"
