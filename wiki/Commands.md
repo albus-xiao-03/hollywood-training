@@ -185,7 +185,10 @@ latest snapshot: mean, standard deviation, mean `|w|`, and `Δ`, the last update
 to the previous weights. With a layer name it prints shape (and the drawn part), element
 count, mean / std, min / max, mean `|w|`, L2 norm, the last update and the mean bias of the
 drawn neurons. Statistics cover the full tensor ([Tracking Weight Data](Tracking-Weight-Data)).
-Unknown names fail with `no layer 'x'; layers: fc1, fc2`.
+A layer with more than one weight tensor (a recurrent or attention layer) also gets a
+`tensors` block: one line per tensor with its name, shape, mean, standard deviation and
+mean `|w|`, the recurrent weights `weight_hh` included. Unknown names fail with
+`no layer 'x'; layers: fc1, fc2`.
 
 ```text
 fc1 after epoch 1
@@ -197,6 +200,21 @@ fc1 after epoch 1
   L2 norm     1.13226
   last update 0.000% of the drawn weights
   bias mean   -0.11755 (drawn neurons)
+```
+
+```text
+rnn after epoch 4
+  shape       5 out x 2 in (drawn 5x2)
+  elements    40
+  mean / std  +0.01822 / 0.22671
+  min / max   -0.43120 / +0.42213
+  mean |w|    0.19534
+  L2 norm     1.43846
+  last update 0.842% of the drawn weights
+  bias mean   +0.02140 (drawn neurons)
+  tensors
+    weight_ih_l0  20x2  mean +0.0182  std 0.2267  |w| 0.1953
+    weight_hh_l0  20x5  mean -0.0107  std 0.2533  |w| 0.2190
 ```
 
 ### View

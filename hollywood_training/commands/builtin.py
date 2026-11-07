@@ -289,6 +289,17 @@ def _weights(ctx: CommandContext, name: str | None) -> str:
             lines.append(f"  last update {fmt.percent(layer.update_ratio, 3)} of the drawn weights")
         if layer.bias is not None:
             lines.append(f"  bias mean   {float(layer.bias.mean()):+.5f} (drawn neurons)")
+        if len(layer.tensors) > 1:  # e.g. weight_ih / weight_hh of a recurrent layer
+            lines.append("  tensors")
+            shapes = ["x".join(str(size) for size in tensor.shape) for tensor in layer.tensors]
+            name_width = max(len(tensor.name) for tensor in layer.tensors)
+            shape_width = max(len(shape) for shape in shapes)
+            for tensor, shape in zip(layer.tensors, shapes, strict=True):
+                ts = tensor.stats
+                lines.append(
+                    f"    {tensor.name:<{name_width}}  {shape:<{shape_width}}  "
+                    f"mean {ts.mean:+.4f}  std {ts.std:.4f}  |w| {ts.abs_mean:.4f}"
+                )
         return "\n".join(lines)
     width = max(len(layer.name) for layer in snapshot.layers)
     lines = [f"weights after epoch {snapshot.epoch}"]

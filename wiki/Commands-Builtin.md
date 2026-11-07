@@ -66,7 +66,7 @@ training process for the window process, the GUI (main) thread for the in-proces
 | `status` | `_status` | | formats `session` | handler thread |
 | `history` | `_history` | | formats `session.history[-count:]` | handler thread |
 | `arch` | `_architecture` | | formats `session.architecture` | handler thread |
-| `weights` | `_weights` | unknown layer → `CommandError` | formats `session.weights` | handler thread |
+| `weights` | `_weights` | unknown layer → `CommandError` | formats `session.weights`; for a layer with several weight tensors, one line per `LayerWeights.tensors` entry | handler thread |
 | `scale` | `_scale` | `mode` choices `lin`, `log` | `ctx.show(ViewRequest("scale", (mode,)))` | handler thread, then the window |
 | `probe` | `_probe` | no history → `no completed epochs yet`; an epoch not in `session.history` → `epoch <n> has not completed yet (last completed: <last>)` | `ctx.show(ViewRequest("probe", (epoch,)))`, then formats the record (`_probe_report`), plus a note while the session is `RUNNING` that the line clears at the next epoch; `off` → `ctx.show(ViewRequest("probe", (None,)))` | handler thread, then the window |
 | `neuron` | `_neuron` | converters only; the window checks the column and the index | `ctx.show(ViewRequest("neuron", (column, index)))` | handler thread, then the window |
