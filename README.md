@@ -226,15 +226,20 @@ It's written for the GitHub wiki: copy the folder's content into the repository'
 
 ```bash
 pip install -e ".[dev]"
-pytest                      # 99 tests; GUI tests run headless (Qt "offscreen")
+tests/run_tests.sh          # the SPEC harness; Qt renders offscreen, no display needed
 ruff check . && ruff format --check .
 ```
+
+The [SPEC harness](tests/README.md) tests the package against the requirements in
+`specs/`, with one test module per requirement. See
+[wiki/Development](wiki/Development.md) for its options.
 
 Project layout:
 
 ```
 hollywood_training/   the package: tracking · training · sync · commands · monitor · gui
 demos/                runnable demos with synthetic data
-tests/                pytest suite (core, GUI, demos)
+specs/                the requirements (R1, R2) the package is built and tested against
+tests/                SPEC harness: one pytest module per requirement, helpers in htspec/
 wiki/                 GitHub-wiki pages: one per module + architecture and guides
 ```

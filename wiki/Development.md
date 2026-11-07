@@ -10,28 +10,57 @@ pip install -e ".[dev]"
 
 ## Tests
 
+The tests in `tests/` are the SPEC harness. They check the package against the
+requirements in `specs/R1.md` and `specs/R2.md`, with one test module per requirement.
+
 ```bash
-pytest                                  # everything (~10 s)
-pytest tests/test_tracking.py -q        # one area
-xvfb-run -a env QT_QPA_PLATFORM=xcb pytest   # GUI tests on a real X11 server
+tests/run_tests.sh                                    # everything
+tests/run_tests.sh -m "not x11"                       # without the real-X11 tests
+tests/run_tests.sh -m "not x11 and not subprocess and not slow"   # the quick part
+tests/run_tests.sh tests/test_r1_01_tracking.py       # one requirement
 ```
 
-`tests/conftest.py` sets `QT_QPA_PLATFORM=offscreen` unless a platform is already
-chosen, so the GUI tests run headless and in CI.
+`tests/run_tests.sh` activates the project's venv, keeps every temporary file and cache in
+`.temp/`, and runs `python -m pytest` with the extra arguments. A plain `pytest` from the
+project folder works too, because `pyproject.toml` points `testpaths` at `tests`. At the
+end of a run, a table counts the passed, failed and skipped tests per requirement.
 
-| File | Covers |
+* **Headless.** `tests/conftest.py` removes `DISPLAY` and `WAYLAND_DISPLAY`, and Qt renders
+  offscreen. The `x11` tests start their own private `Xvfb`, so no `xvfb-run` is needed.
+  They are skipped when Xvfb or the X client libraries are missing.
+* **Markers.** `req(...)` names the requirement a test verifies, and every test has one.
+  `x11` marks the real-X11 tests, `subprocess` the tests that start processes, and `slow`
+  the tests that take more than a few seconds.
+* Every test of an R1 requirement also counts for R2.5 ("all other R1 features must not
+  be affected").
+
+| Requirement | Module |
 |---|---|
-| `tests/test_tracking.py` | decorator, classification, architecture building, forward trace, lazy modules, snapshots, connection matrices |
-| `tests/test_sync.py` | blocking hand-off, `close()`, control requests, session state |
-| `tests/test_training.py` | `TrainingProcess` validation, step output, descriptions, the manager loop: event stream, **training blocked while the frontend handles an epoch**, eval / no-grad validation, pause, step, stop, actions, linger, errors, schedulers, architecture refinement, progress throttling |
-| `tests/test_commands.py` | parsing, conversion, errors, every built-in command, custom commands |
-| `tests/test_monitor_console.py` | usage sampling, formatting, `run(gui=False)`, `TrainingFailedError` |
-| `tests/test_gui.py` | widgets, the main window, terminal input and completion, screenshots, the **in-process frontend drawing every epoch before acknowledging**, commands driving a run, the **window process end to end**, IPC commands and screenshots, start-up failure |
-| `tests/test_demos.py` | both demos, console and GUI, as subprocesses |
-| `tests/test_keyboard_focus.py` | keyboard-driven control: the command line as the only focus target, Tab / Shift+Tab, focus hand-back, keys forwarded from panels, the window and the window system, other windows unaffected |
-| `tests/test_pointer_guard.py` | no pointer and no pointer input inside the window: blank cursors, mouse / wheel / drag / context menu / tooltip / drop swallowed at the native window and at widgets, widgets added later, no mouse code in the panels or the theme, a window outside unaffected |
-| `tests/test_view_requests.py` | the window-only command channel: `ViewRequest` through both frontends, the link and the window process |
-| `tests/test_view_commands.py` | `scale`, `probe` (with the probe line and its removal when training continues, also in a real run), `neuron`, `layout`, `copy` and `window` |
+| R1.1 tracking | `test_r1_01_tracking.py` |
+| R1.2 training management | `test_r1_02_training_management.py` |
+| R1.3 native workflow | `test_r1_03_native_workflow.py` |
+| R1.4 native GUI, animations | `test_r1_04_native_gui.py` |
+| R1.5 synchronisation | `test_r1_05_synchronization.py` |
+| R1.6 speed | `test_r1_06_speed.py` |
+| R1.7 commands | `test_r1_07_commands.py` |
+| R1.8 no dark magic | `test_r1_08_no_dark_magic.py` |
+| R1.9 modules, architecture | `test_r1_09_modular_architecture.py` |
+| R1.10 package folder | `test_r1_10_package_folder.py` |
+| R1.11 demos | `test_r1_11_demos.py` |
+| R1.12 README | `test_r1_12_readme.py` |
+| R1.13 wiki | `test_r1_13_wiki.py` |
+| GUI 1–7: network view, status, loss chart, usage, terminal, network name, blue theme | `test_r1_g1_network_view.py` … `test_r1_g7_blue_theme.py` |
+| R2.1 no pointer inside the window | `test_r2_1_no_pointer.py` |
+| R2.2 mouse interactions disabled | `test_r2_2_mouse_disabled.py` |
+| R2.3 everything without the mouse | `test_r2_3_keyboard_only.py` |
+| R2.4 replacement commands | `test_r2_4_view_commands.py` |
+| R2.5 R1 unaffected | `test_r2_5_r1_unaffected.py`, plus every R1 test |
+| R2.6 outside the window unaffected | `test_r2_6_outside_window.py` |
+| R2.7 keyboard rerouted to the terminal | `test_r2_7_keyboard_reroute.py` |
+
+`tests/README.md` describes the harness in full: the levels it tests at (core, offscreen
+window, real runs, the window process, real X11), its helpers in `tests/htspec/` and its
+safety nets.
 
 ## Style
 
