@@ -8,6 +8,9 @@ Every connection layer is reduced to a **connection matrix** shaped ``(out, in)`
   convolutions (unconnected channel pairs are 0).
 * ``ConvTranspose*``: the same, transposed back to ``(out, in)``.
 * ``Embedding`` / ``EmbeddingBag``: the transposed table, ``(embedding_dim, num_embeddings)``.
+* ``MultiheadAttention``: the outputs are the query, key and value projections (3E). With
+  one ``in_proj_weight`` it is the matrix itself; with separate ``q/k/v_proj_weight`` the
+  inputs are the query, key and value features, and the matrix is block-diagonal.
 * ``Bilinear``: the inputs are x1's features, then x2's. ``W[j, i, k]`` links x1 feature
   ``i`` and x2 feature ``k`` to output ``j``: an x1 feature gets the mean over ``k``, an x2
   feature the mean over ``i``.
@@ -23,7 +26,7 @@ can be handed to another thread while training continues.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 
 import numpy as np
 import torch
@@ -31,10 +34,12 @@ from torch import nn
 
 from .architecture import NetworkArchitecture, TrackedLayer
 from .layers import (
+    ATTENTION_LAYERS,
     BILINEAR_LAYERS,
     CONVOLUTION_LAYERS,
     EMBEDDING_LAYERS,
     TRANSPOSED_CONVOLUTION_LAYERS,
+    attention_projections,
     is_uninitialized,
     primary_weight,
     weight_tensors,
@@ -95,6 +100,25 @@ def _grouped(
     return gathered * (row_group[:, None] == col_group[None, :]).to(gathered.dtype)
 
 
+def _block_diagonal(
+    blocks: Sequence[torch.Tensor], rows: torch.Tensor, cols: torch.Tensor
+) -> torch.Tensor:
+    """``torch.block_diag(*blocks)`` restricted to ``rows`` and ``cols``, without building
+    the full matrix: every entry outside the blocks is 0."""
+    matrix = torch.zeros(rows.numel(), cols.numel(), device=rows.device)
+    row_start = col_start = 0
+    for block in blocks:
+        height, width = int(block.shape[0]), int(block.shape[1])
+        r = torch.nonzero((rows >= row_start) & (rows < row_start + height)).flatten()
+        c = torch.nonzero((cols >= col_start) & (cols < col_start + width)).flatten()
+        if r.numel() and c.numel():
+            piece = block.index_select(0, rows[r] - row_start)
+            matrix[r[:, None], c[None, :]] = piece.index_select(1, cols[c] - col_start).float()
+        row_start += height
+        col_start += width
+    return matrix
+
+
 def connection_matrix(
     module: nn.Module, in_index: np.ndarray, out_index: np.ndarray
 ) -> torch.Tensor | None:
@@ -121,6 +145,11 @@ def connection_matrix(
         out_pg = int(module.out_channels) // groups
         in_pg = int(module.in_channels) // groups
         return _grouped(block, rows_out, cols_in, out_pg, in_pg)
+    if isinstance(module, ATTENTION_LAYERS):  # outputs: the q, k, v projections (3E)
+        projections = [tensor.detach() for _name, tensor in attention_projections(module)]
+        if len(projections) > 1:  # q (E, E), k (E, kdim), v (E, vdim): one block each
+            return _block_diagonal(projections, rows_out, cols_in)
+        weight = projections[0]  # in_proj_weight (3E, E), read like a Linear weight
     if isinstance(module, BILINEAR_LAYERS):  # (out, in1, in2): inputs x1, then x2
         rows = weight.index_select(0, rows_out).float()
         both = torch.cat((rows.mean(dim=2), rows.mean(dim=1)), dim=1)  # (k_out, in1 + in2)
@@ -129,9 +158,27 @@ def connection_matrix(
     return _kernel_mean(weight.index_select(0, rows_out).index_select(1, cols_in))
 
 
+def _drawn_tensors(module: nn.Module) -> list[torch.Tensor]:
+    """The weight tensors the connection matrix of ``module`` is read from."""
+    projections = attention_projections(module)
+    if projections:
+        return [tensor for _name, tensor in projections]
+    weight = primary_weight(module)
+    return [] if weight is None else [weight]
+
+
+def _stats_of(tensors: Sequence[torch.Tensor]) -> WeightStats:
+    """:func:`weight_stats` of one tensor, or of several taken together."""
+    if len(tensors) == 1:
+        return weight_stats(tensors[0])
+    return weight_stats(torch.cat([tensor.detach().reshape(-1) for tensor in tensors]))
+
+
 def _sampled_bias(module: nn.Module, out_index: np.ndarray, out_features: int) -> np.ndarray | None:
-    """The module's ``bias`` at ``out_index``, when it is a vector with one entry per output."""
-    bias = getattr(module, "bias", None)
+    """The bias at ``out_index`` - ``bias``, or ``in_proj_bias`` for attention - when it is
+    a vector with one entry per output."""
+    name = "in_proj_bias" if isinstance(module, ATTENTION_LAYERS) else "bias"
+    bias = getattr(module, name, None)
     if not isinstance(bias, torch.Tensor) or is_uninitialized(bias):
         return None
     if bias.dim() != 1 or bias.shape[0] != out_features:
@@ -161,8 +208,8 @@ def capture_layer(
 ) -> LayerWeights | None:
     """Snapshot one layer; ``None`` while its parameters are still uninitialised."""
     in_features, out_features = layer.in_features, layer.out_features
-    weight = primary_weight(layer.module)
-    if weight is None or in_features is None or out_features is None:
+    drawn = _drawn_tensors(layer.module)
+    if not drawn or in_features is None or out_features is None:
         return None
     in_index = display_indices(in_features, limit)
     out_index = display_indices(out_features, limit)
@@ -172,8 +219,8 @@ def capture_layer(
             return None
         matrix = _to_numpy(matrix_tensor)
         bias = _sampled_bias(layer.module, out_index, out_features)
-        stats = weight_stats(weight)
-        tensors = tensor_stats(layer.module, {id(weight): stats})
+        stats = _stats_of(drawn)
+        tensors = tensor_stats(layer.module, {id(drawn[0]): stats} if len(drawn) == 1 else {})
 
     delta = None
     update_ratio = None

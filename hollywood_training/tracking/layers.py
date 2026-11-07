@@ -31,6 +31,7 @@ TRANSPOSED_CONVOLUTION_LAYERS = _public_classes(
 )
 EMBEDDING_LAYERS = _public_classes("Embedding", "EmbeddingBag")
 BILINEAR_LAYERS = _public_classes("Bilinear")  # two inputs: x1 (in1) and x2 (in2)
+ATTENTION_LAYERS = _public_classes("MultiheadAttention")  # q, k, v; out_proj is a child
 ACTIVATION_LAYERS = _public_classes(
     "ReLU", "ReLU6", "LeakyReLU", "PReLU", "RReLU", "ELU", "SELU", "CELU", "GELU", "SiLU",
     "Mish", "Sigmoid", "LogSigmoid", "Hardsigmoid", "Tanh", "Hardtanh", "Tanhshrink",
@@ -62,6 +63,7 @@ CONNECTION_LAYERS = (
     + TRANSPOSED_CONVOLUTION_LAYERS
     + EMBEDDING_LAYERS
     + BILINEAR_LAYERS
+    + ATTENTION_LAYERS
 )
 OPERATION_ROLES = frozenset(
     {
@@ -117,6 +119,16 @@ def primary_weight(module: nn.Module) -> nn.Parameter | None:
     return tensors[0][1] if tensors else None
 
 
+def attention_projections(module: nn.Module) -> list[tuple[str, nn.Parameter]]:
+    """The q, k, v input projections of an attention layer: ``[("in_proj_weight", W)]``
+    when they share one ``(3E, E)`` tensor, otherwise ``q_proj_weight``, ``k_proj_weight``
+    and ``v_proj_weight`` (a key or value size other than ``E``). Empty for other modules."""
+    if not isinstance(module, ATTENTION_LAYERS):
+        return []
+    names = ("in_proj_weight", "q_proj_weight", "k_proj_weight", "v_proj_weight")
+    return [(name, tensor) for name, tensor in weight_tensors(module) if name in names]
+
+
 def is_pass_through(module: nn.Module) -> bool:
     """Modules that do nothing (``nn.Identity``) and are left out of the drawing."""
     return isinstance(module, PASS_THROUGH_LAYERS)
@@ -153,6 +165,11 @@ def connection_shape(module: nn.Module) -> tuple[int | None, int | None]:
         return int(module.in_channels), int(module.out_channels)
     if isinstance(module, BILINEAR_LAYERS):  # both inputs, x1 then x2
         return int(module.in1_features) + int(module.in2_features), int(module.out_features)
+    if isinstance(module, ATTENTION_LAYERS):  # outputs: the query, key and value projections
+        embed = int(module.embed_dim)
+        if len(attention_projections(module)) == 1:
+            return embed, 3 * embed
+        return embed + int(module.kdim) + int(module.vdim), 3 * embed  # query, key, value
     # Linear and any other weight owner: the tensor is read as (out, in, ...)
     return int(weight.shape[1]), int(weight.shape[0])
 
@@ -173,6 +190,11 @@ def summarize(module: nn.Module) -> str:
             return f"{name} (uninitialised)"
         if isinstance(module, BILINEAR_LAYERS):
             return f"{name} {module.in1_features}+{module.in2_features}→{out_features}"
+        if isinstance(module, ATTENTION_LAYERS):
+            inputs = str(in_features)
+            if len(attention_projections(module)) > 1:
+                inputs = f"{module.embed_dim}+{module.kdim}+{module.vdim}"
+            return f"{name} {inputs}→{out_features} h{module.num_heads}"
         text = f"{name} {in_features}→{out_features}"
         kernel = getattr(module, "kernel_size", None)
         return f"{text} k{_kernel_text(kernel)}" if kernel is not None else text

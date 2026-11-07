@@ -39,6 +39,7 @@ too, including the lazy variants (`LazyLinear`, `LazyConv2d`, ...).
 | `TRANSPOSED_CONVOLUTION_LAYERS` | `ConvTranspose1d`, `ConvTranspose2d`, `ConvTranspose3d` |
 | `EMBEDDING_LAYERS` | `Embedding`, `EmbeddingBag` |
 | `BILINEAR_LAYERS` | `Bilinear` |
+| `ATTENTION_LAYERS` | `MultiheadAttention` |
 | `ACTIVATION_LAYERS` | `ReLU`, `ReLU6`, `LeakyReLU`, `PReLU`, `RReLU`, `ELU`, `SELU`, `CELU`, `GELU`, `SiLU`, `Mish`, `Sigmoid`, `LogSigmoid`, `Hardsigmoid`, `Tanh`, `Hardtanh`, `Tanhshrink`, `Hardswish`, `Softplus`, `Softsign`, `Softshrink`, `Hardshrink`, `Threshold`, `GLU`, `Softmax`, `Softmin`, `LogSoftmax`, `Softmax2d` |
 | `NORMALIZATION_LAYERS` | `BatchNorm1d`, `BatchNorm2d`, `BatchNorm3d`, `SyncBatchNorm`, `LayerNorm`, `GroupNorm`, `InstanceNorm1d`, `InstanceNorm2d`, `InstanceNorm3d`, `LocalResponseNorm`, `RMSNorm`, `CrossMapLRN2d` |
 | `REGULARIZATION_LAYERS` | `Dropout`, `Dropout1d`, `Dropout2d`, `Dropout3d`, `AlphaDropout`, `FeatureAlphaDropout` |
@@ -50,7 +51,7 @@ too, including the lazy variants (`LazyLinear`, `LazyConv2d`, ...).
 LINEAR_LAYERS = _public_classes("Linear")      # every tuple above is built this way
 CONNECTION_LAYERS = (
     LINEAR_LAYERS + CONVOLUTION_LAYERS + TRANSPOSED_CONVOLUTION_LAYERS + EMBEDDING_LAYERS
-    + BILINEAR_LAYERS
+    + BILINEAR_LAYERS + ATTENTION_LAYERS
 )
 OPERATION_ROLES = frozenset({LayerRole.ACTIVATION, LayerRole.NORMALIZATION,
                              LayerRole.REGULARIZATION, LayerRole.POOLING, LayerRole.RESHAPE})
@@ -64,6 +65,7 @@ def weight_of(module: nn.Module) -> nn.Parameter | None
 def has_weight_matrix(module: nn.Module) -> bool
 def weight_tensors(module: nn.Module) -> list[tuple[str, nn.Parameter]]
 def primary_weight(module: nn.Module) -> nn.Parameter | None
+def attention_projections(module: nn.Module) -> list[tuple[str, nn.Parameter]]
 def is_pass_through(module: nn.Module) -> bool
 ```
 
@@ -82,6 +84,10 @@ def is_pass_through(module: nn.Module) -> bool
 * `primary_weight`: the tensor a connection layer is read from: `weight_of(module)` when
   it has two or more dimensions, otherwise the first weight tensor, or `None` when there
   is none (yet).
+* `attention_projections`: the query, key and value input projections of an attention
+  layer: `[('in_proj_weight', W)]` when they share one `(3E, E)` tensor, otherwise
+  `q_proj_weight`, `k_proj_weight` and `v_proj_weight` (PyTorch keeps them separate when
+  `kdim` or `vdim` differs from `embed_dim`). Empty for any other module.
 * `is_pass_through`: `isinstance(module, PASS_THROUGH_LAYERS)`. Such modules are left out
   of the drawing.
 
@@ -92,8 +98,7 @@ def classify(module: nn.Module) -> LayerRole
 Checks run in this order, and the first match wins: `CONNECTION_LAYERS` → `CONNECTION`,
 `ACTIVATION_LAYERS`, `NORMALIZATION_LAYERS`, `REGULARIZATION_LAYERS`, `POOLING_LAYERS`,
 `RESHAPE_LAYERS`, then a non-empty `weight_tensors(module)` → `CONNECTION` (any other
-weight owner: the recurrent layers, `MultiheadAttention`, custom modules), and otherwise
-`OTHER`. It works on any module, with or without children.
+weight owner: the recurrent layers, custom modules), and otherwise `OTHER`. It works on any module, with or without children.
 
 ```python
 def connection_shape(module: nn.Module) -> tuple[int | None, int | None]
@@ -107,6 +112,7 @@ Returns `(in_features, out_features)`:
 | `Embedding`, `EmbeddingBag` | `(num_embeddings, embedding_dim)`, from `weight.shape` |
 | `Conv*`, `ConvTranspose*` | `(in_channels, out_channels)` |
 | `Bilinear` | `(in1_features + in2_features, out_features)`: both inputs, x1 first |
+| `MultiheadAttention` | `(embed_dim, 3 * embed_dim)`: the outputs are the query, key and value projections. With separate projections the inputs are the query, key and value features: `(embed_dim + kdim + vdim, 3 * embed_dim)` |
 | any other weight owner: `primary_weight` read as `(out, in, ...)` | `(shape[1], shape[0])`, e.g. `(in, out)` for a 2-D `weight` |
 
 ```python
@@ -117,7 +123,8 @@ def summarize(module: nn.Module) -> str
 |---|---|---|
 | connection layer of unknown shape | `{name} (uninitialised)` | `LazyLinear (uninitialised)` |
 | `Bilinear` | `{name} {in1}+{in2}→{out}` | `Bilinear 3+4→2` |
-| connection layer | `{name} {in}→{out}`, plus ` k{kernel}` when the module has `kernel_size` (tuple parts joined by `x`) | `Linear 2→16`, `Conv2d 3→8 k3x3`, `MultiheadAttention 8→24` |
+| `MultiheadAttention` | `{name} {in}→{out} h{num_heads}`, with `{in}` written `{embed_dim}+{kdim}+{vdim}` for separate projections | `MultiheadAttention 8→24 h2`, `MultiheadAttention 8+6+4→24 h2` |
+| connection layer | `{name} {in}→{out}`, plus ` k{kernel}` when the module has `kernel_size` (tuple parts joined by `x`) | `Linear 2→16`, `Conv2d 3→8 k3x3` |
 | regularization | `{name}(p={p:g})` | `Dropout(p=0.2)` |
 | `LeakyReLU` | `{name}({negative_slope:g})` | `LeakyReLU(0.1)` |
 | normalization | `{name}({size})`, with `size` from `num_features`, else `normalized_shape` (tuple parts joined by `x`). Bare name when neither exists | `BatchNorm1d(16)`, `LayerNorm(4x5)`, `GroupNorm` |
@@ -137,8 +144,8 @@ listed elsewhere therefore keeps its listed role: `LayerNorm((4, 5))` and `RMSNo
 * [Tracking Inspector](Tracking-Inspector): `classify`, `connection_shape`, `summarize`,
   `is_pass_through`, `is_uninitialized`, `OPERATION_ROLES`.
 * [Tracking Snapshots](Tracking-Snapshots): `primary_weight`, `weight_tensors`,
-  `is_uninitialized`, and the convolution, transposed convolution, embedding and bilinear
-  tuples.
+  `attention_projections`, `is_uninitialized`, and the convolution, transposed
+  convolution, embedding, bilinear and attention tuples.
 * [Training Descriptions](Training-Descriptions): `is_uninitialized`, to find the model's
   device.
 * Lazily exported: `classify`, `connection_shape`, `summarize`.
@@ -163,7 +170,7 @@ connection_shape(Projection()), summarize(Projection())   # ((3, 4), 'Projection
 
 attention = nn.MultiheadAttention(8, 2)   # a weight owner with a child (out_proj)
 classify(attention), summarize(attention)
-# (<LayerRole.CONNECTION: 'connection'>, 'MultiheadAttention 8→24')
+# (<LayerRole.CONNECTION: 'connection'>, 'MultiheadAttention 8→24 h2')
 ```
 
 ## Notes

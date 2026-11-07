@@ -111,11 +111,12 @@ Structure comes from `named_modules()`, `children()`, `parameters()`,
 `named_parameters(recurse=False)`, `register_forward_hook`, `register_forward_pre_hook`,
 public `torch.nn` classes looked up by name, and `type(module).__name__`. Details come from
 public module attributes: `weight`, `bias`, `in_channels`, `out_channels`, `groups`,
-`kernel_size`, `in1_features`, `in2_features`, `out_features`, `p`, `negative_slope`,
-`num_features`, `normalized_shape`, and `.module` of `DataParallel` /
-`DistributedDataParallel` wrappers. The network inside `torch.compile`'s `OptimizedModule`
-is its `_orig_mod` child, read through `named_children()`. Weights are copied with
-ordinary tensor operations under `torch.no_grad()`. User code is never inspected.
+`kernel_size`, `in1_features`, `in2_features`, `out_features`, `embed_dim`, `kdim`,
+`vdim`, `num_heads`, `in_proj_bias`, `p`, `negative_slope`, `num_features`,
+`normalized_shape`, and `.module` of `DataParallel` / `DistributedDataParallel` wrappers.
+The network inside `torch.compile`'s `OptimizedModule` is its `_orig_mod` child, read
+through `named_children()`. Weights are copied with ordinary tensor operations under
+`torch.no_grad()`. User code is never inspected.
 
 ## Example
 

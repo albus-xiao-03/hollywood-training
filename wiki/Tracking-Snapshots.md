@@ -36,6 +36,7 @@ strongly input `in_index[i]` feeds output `out_index[j]`:
 | `Embedding`, `EmbeddingBag` | `(num_embeddings, embedding_dim)` | the transposed table, `(embedding_dim, num_embeddings)` |
 | `ConvTranspose1d/2d/3d` | `(in, out / groups, *kernel)` | signed mean over the kernel window, block-diagonal for groups, transposed back to `(out, in)` |
 | `Conv1d/2d/3d` | `(out, in / groups, *kernel)` | signed mean over the kernel window. Channel pairs in different groups are `0` |
+| `MultiheadAttention` | `in_proj_weight` `(3E, E)`, or `q_proj_weight` `(E, E)`, `k_proj_weight` `(E, kdim)`, `v_proj_weight` `(E, vdim)` | the outputs are the query, key and value projections: `in_proj_weight` itself, or the block-diagonal matrix of the three separate weights over the query, key and value features |
 | `Bilinear` | `(out, in1, in2)` | inputs x1 then x2, `(out, in1 + in2)`: an x1 feature gets the mean over x2, an x2 feature the mean over x1 |
 | any other weight owner (`Linear`, linear-like, and any module with a weight tensor) | `(out, in, ...)` | the tensor itself when it is 2-D, otherwise its signed mean over the dimensions after the first two |
 
@@ -90,10 +91,12 @@ statistics already computed, which are reused instead of computed again.
    to the CPU (at most `limit × limit` entries). The copy is
    `tensor.detach().to(device="cpu", dtype=torch.float32).numpy().copy()`, then made
    read-only.
-3. The bias is read when `module.bias` is an initialised vector with one entry per output
-   feature, at `out_index`, and copied the same way. `stats = weight_stats(weight)` uses
-   the whole primary weight. `tensors = tensor_stats(module)` adds the statistics of every
-   weight tensor of the layer, reusing `stats` for the primary weight.
+3. The bias is read when `module.bias` (`in_proj_bias` for attention) is an initialised
+   vector with one entry per output feature, at `out_index`, and copied the same way.
+   `stats` covers the whole tensor the matrix is read from: the primary weight, or the
+   separate query, key and value weights taken together. `tensors = tensor_stats(module)`
+   adds the statistics of every weight tensor of the layer, reusing `stats` when it
+   covers a single tensor.
 4. `delta` and `update_ratio` are computed only when `previous` has the same matrix shape
    and identical `in_index` and `out_index`. Then `delta = matrix - previous.matrix`
    (read-only) and `update_ratio = norm(delta) / (norm(previous.matrix) + 1e-12)`.
@@ -105,6 +108,16 @@ channel `j` belongs to group `j // (out_channels // groups)`, and input channel 
 group `i // (in_channels // groups)`. The entry is the kernel mean of the local channel
 pair when both groups match, and `0` otherwise. A depthwise convolution
 (`groups == channels`) therefore yields a diagonal matrix.
+
+**Attention layers.** `nn.MultiheadAttention` projects its query, key and value inputs
+with `in_proj_weight` (rows `0..E-1` make the query, `E..2E-1` the key, `2E..3E-1` the
+value) before the attention itself, which has no weights. So its connection matrix is
+that projection, and the bias is `in_proj_bias`. When `kdim` or `vdim` differs from `E`,
+PyTorch keeps three weights instead. The inputs are then the query, key and value
+features (`E + kdim + vdim`), and each projection connects only its own input: the
+matrix is block-diagonal, built from the sampled rows and columns only. The output
+projection `out_proj` is a `Linear` child and is a layer of its own. `bias_k` and
+`bias_v` (with `add_bias_kv=True`) are tracked in `tensors`.
 
 **Bilinear layers.** `nn.Bilinear` computes `y[j] = x1 · W[j] · x2 + b[j]`, so the weight
 `W[j, i, k]` links x1 feature `i` and x2 feature `k` to output `j`. The drawn inputs are

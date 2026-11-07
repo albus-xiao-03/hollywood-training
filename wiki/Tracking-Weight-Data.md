@@ -80,7 +80,7 @@ class LayerWeights:
 | `delta` | `matrix` minus the same layer's matrix in the baseline snapshot. `None` when there is no baseline for the layer, or the displayed indices differ |
 | `in_index`, `out_index` | sorted `int64` feature indices that are displayed |
 | `in_features`, `out_features` | full layer sizes |
-| `stats` | `WeightStats` of the full tensor `matrix` is drawn from (the layer's `weight` for `Linear`, convolution and embedding layers) |
+| `stats` | `WeightStats` of the full tensor `matrix` is drawn from: the layer's `weight` for `Linear`, convolution and embedding layers, `in_proj_weight` for attention, or its separate query, key and value weights taken together |
 | `update_ratio` | `norm(delta) / (norm(previous.matrix) + 1e-12)`, Frobenius norms of the displayed matrices. `None` together with `delta` |
 | `tensors` | `TensorStats` of every weight tensor of the layer, in registration order: one (`weight`) for `Linear`, convolution and embedding layers, more for recurrent and attention layers. A snapshot made without them leaves the default `()` |
 
