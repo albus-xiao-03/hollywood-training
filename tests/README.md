@@ -9,8 +9,10 @@ harness was written from scratch for the R2 version of the package (branch
 `feature/keyboard-driven-control`). It replaces the build-phase test suite that was in
 `tests/` before.
 
-> **Status:** executed. Its first execution, in the QA of 2026-11-06 (`QA-REPORT.md`),
-> exposed defects in the harness itself. They are fixed:
+> **Status:** executed and in use.
+>
+> Its first execution, in the QA of 2026-11-06, exposed defects in the harness itself.
+> They are fixed (`184f44f`..`eb5a51e`):
 > * `test_r2_4_view_commands.py` could not be collected, because a test parameter was named
 >   `request`, which pytest reserves.
 > * `LiveApp.enter()` waited on the wrong probe records, so every real-X11 test that types
@@ -20,8 +22,10 @@ harness was written from scratch for the R2 version of the package (branch
 > * The drop tests used deprecated drag-event constructors.
 > * With `--cov`, coverage's data file landed in the project root.
 >
-> After the fixes, a full run collects 1083 test cases. The only failures are the strict
-> tests listed below, which are findings about the package.
+> The QA of 2026-11-07 (`QA-REPORT.md`, raw output in `TEST-REPORT.md`) ran the harness
+> unchanged on the package with its QA fixes (`2888dbb`..`c11fd15`): 1083 test cases,
+> 1080 passed, 3 failed. The 3 failures are the small-window cases of the strict test
+> below, an accepted deviation.
 
 ## Running it
 
@@ -115,24 +119,29 @@ or the X client libraries are missing), `subprocess` marks tests that start proc
 
 That is 415 test functions in 27 modules; with parametrization, 1083 test cases.
 
-## Strict tests that fail on this version
+## Strict tests
 
-Execution confirmed what reading the implementation had suggested: the tests below expose
-deviations from a strict reading of the specification. Their failures are findings about
-the package, not harness bugs, and they must not be weakened.
+These tests read the specification strictly. When they fail, that is a finding about the
+package, not a harness bug, and they must not be weakened.
+
+**Passing since the package's QA fixes (`2888dbb`..`c11fd15`):**
 
 * **R1.1 "the weights of each layer"**:
-  `test_r1_01_tracking.py::test_every_weight_matrix_of_the_network_is_tracked`
-  * Fails for `Bilinear`, `RNN`, `LSTM`, `GRU`, `MultiheadAttention` and
-    `TransformerEncoderLayer`.
-  * Tracking only follows modules with a 2-D `weight` (and convolutions and embeddings).
+  `test_r1_01_tracking.py::test_every_weight_matrix_of_the_network_is_tracked`, for
+  `Bilinear`, `RNN`, `LSTM`, `GRU`, `MultiheadAttention` and `TransformerEncoderLayer`.
+  Every weight tensor (a parameter with two or more dimensions) must belong to a tracked
+  layer. Before the fixes, tracking followed only modules with a 2-D `weight`, plus
+  convolutions and embeddings.
 * **GUI 1 "the REAL weights of each layer"**:
-  `test_r1_g1_network_view.py::test_the_weights_of_every_layer_are_shown`, for LSTM and
-  attention networks. The cause is the same.
+  `test_r1_g1_network_view.py::test_the_weights_of_every_layer_are_shown`, for an LSTM and
+  an attention network. Every weight matrix must be drawn as a connection.
 * **GUI 6 "its class name"**:
   `test_r1_g6_network_name.py::test_a_compiled_network_is_still_shown_by_its_own_class`.
-  The inspector only unwraps `DataParallel` and `DistributedDataParallel`, so a
-  `torch.compile`-d network shows as `OptimizedModule`.
+  A `torch.compile`-d network must be shown by its own class. Before the fixes it showed as
+  `OptimizedModule`.
+
+**Failing on this version, accepted by the product owner (no fix planned):**
+
 * **GUI 1–5 at small window sizes**:
   `test_r1_g1_network_view.py::test_every_panel_stays_fully_visible_at_small_window_sizes`.
   * The right column's minimum panel heights (300 + 200 + 140 px, plus 16 px of splitter
@@ -140,6 +149,20 @@ the package, not harness bugs, and they must not be weakened.
   * The window allows a height of 680 px, which is also where it opens on a 1366 × 768
     screen.
   * At 960 × 680, 1202 × 680 and 1366 × 720 the status panel and the loss chart overlap.
+
+## What the harness does not check yet
+
+The harness predates the package's QA fixes. Its strict tests check that the newly tracked
+layer types are tracked and drawn at all, not *what* is tracked or drawn (`QA-REPORT.md`,
+V1 and V2). Not covered:
+
+* The values, statistics and per-epoch updates of the weight tensors of `Bilinear`,
+  recurrent and attention layers. These are checked only for Linear, Conv, ConvTranspose
+  and Embedding layers.
+* Stacked, bidirectional and projected recurrent layers, recurrent cells, and attention
+  with separate key / value sizes.
+* The recurrence arcs and the `ATTENTION` bridge of the network view, the `tensors` block
+  of `weights <layer>`, and `repr(TrainingProcess)` for a wrapped network.
 
 ## Layout
 
