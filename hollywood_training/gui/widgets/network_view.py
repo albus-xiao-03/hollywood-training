@@ -46,6 +46,9 @@ from ..animation import AnimationClock, pulse
 from ..theme import PALETTE, color, glow_sprite, mix, mono_font
 from .hud import HudPanel
 
+# The bridge after these layers stands for the attention softmax(QK^T)V - from the query,
+# key and value projections to the attention output - not for a reshape.
+ATTENTION_TYPES = frozenset({"MultiheadAttention"})
 LEVELS = 12  # strength buckets used to batch connection lines by pen
 HOT_LEVELS = 3  # how strongly a connection changed in the last epoch
 STATE_SPEED = {
@@ -74,7 +77,8 @@ class Column:
 
 @dataclass(slots=True)
 class Link:
-    """Connections between two columns: a layer's weights, or a reshape bridge."""
+    """Connections between two columns: a layer's weights, or a bridge - a reshape, or
+    the attention after an attention layer's q, k, v projections (``name`` says which)."""
 
     name: str
     source: int
@@ -114,12 +118,14 @@ def build_columns(
             or not np.array_equal(previous.indices, in_index)
         ):
             first = previous is None
+            attention = not first and architecture.layers[position - 1].type_name in ATTENTION_TYPES
+            subtitle = "attention output" if attention else "reshaped input"
             columns.append(
                 Column(
                     indices=in_index,
                     size=layer.in_features,
                     title="INPUT" if first else f"{layer.name.upper()} IN",
-                    subtitle="network input" if first else "reshaped input",
+                    subtitle="network input" if first else subtitle,
                     caption=_amount(in_index, layer.in_features, "feature"),
                     badges=tuple(op.summary for op in architecture.input_operations)
                     if first
@@ -129,7 +135,8 @@ def build_columns(
                 )
             )
             if not first:
-                links.append(Link("reshape", len(columns) - 2, len(columns) - 1, None, bridge=True))
+                kind = "attention" if attention else "reshape"
+                links.append(Link(kind, len(columns) - 2, len(columns) - 1, None, bridge=True))
 
         last = position == count - 1
         columns.append(
@@ -501,7 +508,7 @@ class NetworkView(HudPanel):
         painter.drawText(
             QRectF(center.x() - 60, center.y() - 8, 120, 16),
             Qt.AlignmentFlag.AlignCenter,
-            "RESHAPE",
+            link.name.upper(),  # RESHAPE, or ATTENTION
         )
 
     def _paint_neurons(self, painter: QPainter) -> None:

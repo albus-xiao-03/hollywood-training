@@ -61,8 +61,9 @@ class Link:
 
 A `Column` is one drawn column of neurons. The layout sets `x` and `ys` (one y per shown
 neuron). A `Link` connects column `source` to column `target`. It holds either a layer's
-weights, or, with `bridge=True`, a reshape between one layer's output and the next
-layer's differently shaped input. This `Link` is unrelated to
+weights, or, with `bridge=True`, a bridge between one layer's output and the next
+layer's differently shaped input: a reshape, or the attention after an attention layer
+(the bridge's `name`, `"reshape"` or `"attention"`). This `Link` is unrelated to
 `hollywood_training.gui.link.Link` ([Link Protocol](GUI-Link-Protocol)).
 
 ```python
@@ -80,7 +81,11 @@ For each layer in `architecture.layers`:
   column's size or indices differ from the layer's input. The first one is `INPUT`
   ("network input", with the input operations as badges, `input_labels`, kind `input`).
   Later ones are `<LAYER> IN` ("reshaped input"), connected to the previous column by a
-  bridge `Link("reshape", ...)`.
+  bridge `Link("reshape", ...)`. When the previous layer is an attention layer (its
+  `type_name` is in `ATTENTION_TYPES`, i.e. `MultiheadAttention`), the subtitle is
+  "attention output" and the bridge is `Link("attention", ...)`: it stands for the
+  attention `softmax(QKᵀ)V` from the query, key and value projections to the input of
+  `out_proj`, which has no weights of its own.
 * The layer's output column has the upper-cased layer name as title, `LayerInfo.summary`
   as subtitle, and the summaries of its operations as badges. It takes `bias` from the
   weights. The last layer's column also gets `output_labels` and kind `output`.
@@ -162,7 +167,8 @@ and the [Pointer Guard](GUI-Pointer-Guard) keeps pointer input away. The attribu
 | order | buckets are sorted ascending, so weak lines come first and strong ones end on top. Each bucket and pass is one `drawLines` call with one pen |
 
 A layer without weights yet gets faint uniform lines between all its neurons. A bridge is
-drawn as a translucent, dashed quadrilateral labelled `RESHAPE`.
+drawn as a translucent, dashed quadrilateral labelled with its upper-cased name:
+`RESHAPE`, or `ATTENTION`.
 
 **Neurons and labels.** The ring is `accent`. The core is mixed from `ice` toward cyan or
 indigo by `bias / max(abs(bias))` of its column. In a column without bias, or with only
