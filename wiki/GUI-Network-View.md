@@ -4,7 +4,8 @@
 
 `NetworkView` draws the tracked network (SPEC GUI 1): columns of neurons, the connections
 between them drawn from each layer's real connection matrix, the neurons' biases, and the
-operations of each layer. The drawing is rebuilt from the new weight snapshot at every
+operations of each layer. The recurrent connections of a recurrent layer are drawn too,
+as arcs beside its column. The drawing is rebuilt from the new weight snapshot at every
 epoch hand-off, so the lines follow the real training updates. An animation overlay,
 with glowing neurons and signal particles that prefer strong weights, runs on top of a
 cached pixmap. The `neuron` command highlights one drawn neuron with a pulsing ring and a
@@ -14,8 +15,8 @@ box showing its index, label and bias.
 
 * Turn an `ArchitectureInfo` and a `WeightSnapshot` into columns and links
   (`build_columns`).
-* Lay them out and render the static layer (frame, connections, neurons, labels) into a
-  pixmap. Rebuild it only when the architecture, the weights, the size or the device
+* Lay them out and render the static layer (frame, connections, recurrent connections,
+  neurons, labels) into a pixmap. Rebuild it only when the architecture, the weights, the size or the device
   pixel ratio change.
 * Animate halos and signals every frame.
 * Highlight a selected neuron (`select_neuron`) and describe it (`neuron_lines`).
@@ -49,6 +50,9 @@ class Column:
     kind: str = "hidden"  # "input" | "hidden" | "output"
     x: float = 0.0
     ys: np.ndarray = field(default_factory=lambda: np.zeros(0))
+    layer: str | None = None  # the layer whose outputs the column shows
+    recurrence: Recurrence | None = None  # that layer's recurrent connections
+    loop_source: int | None = None  # the column the recurrence comes from
 
 @dataclass(slots=True)
 class Link:
@@ -88,11 +92,18 @@ For each layer in `architecture.layers`:
   `out_proj`, which has no weights of its own.
 * The layer's output column has the upper-cased layer name as title, `LayerInfo.summary`
   as subtitle, and the summaries of its operations as badges. It takes `bias` from the
-  weights. The last layer's column also gets `output_labels` and kind `output`.
+  weights, `layer` is the layer's name, and `recurrence` is the layer's
+  `LayerWeights.recurrence` ([Weight Data](Tracking-Weight-Data)). The last layer's
+  column also gets `output_labels` and kind `output`.
 * Captions count the shown and total features of an input column, or neurons of an
   output column, with the noun pluralised: `1 feature`, `16 neurons`,
   `20 of 128 features`, and `? neurons` when the size is unknown.
 * A `Link(layer.name, ...)` carries the layer's `LayerWeights`, or `None`.
+* Finally each recurrence gets its `loop_source`: the index of the column whose `layer` is
+  `recurrence.source`, i.e. the column itself or the column of its `.proj` layer. A
+  recurrence whose source column is missing, or drawn with other neurons than
+  `recurrence.source_index`, is dropped (`recurrence = None`). Recurrences are not
+  links, so the signals stay on the forward connections.
 
 ```python
 class Signals:
@@ -169,6 +180,20 @@ and the [Pointer Guard](GUI-Pointer-Guard) keeps pointer input away. The attribu
 A layer without weights yet gets faint uniform lines between all its neurons. A bridge is
 drawn as a translucent, dashed quadrilateral labelled with its upper-cased name:
 `RESHAPE`, or `ATTENTION`.
+
+**Recurrent connections**, per column with a `recurrence`, after the connections and
+before the neurons. They use the buckets, colours and passes of the table above, from
+`Recurrence.matrix` and `Recurrence.delta`, at 80 % of the opacity, so the forward
+connections stay readable. Every curve is drawn as 12 straight 1 px segments of a
+cubic Bézier curve, the fast path:
+
+* The recurrence comes from the column itself: an arc on the right of the column, from
+  source neuron `i` back to neuron `j`. It bulges `2.6·r + 0.35·|y_j − y_i|` px, at most
+  up to 45 % of the way to the next column (to the panel's edge for the last column). A
+  neuron that feeds itself gets a small loop.
+* The recurrence comes from the projection's column (an LSTM with `proj_size`): a curve
+  from projection neuron `i` back to neuron `j` of the layer's column, sagging below the
+  straight connections between the two columns by 28 % of their distance.
 
 **Neurons and labels.** The ring is `accent`. The core is mixed from `ice` toward cyan or
 indigo by `bias / max(abs(bias))` of its column. In a column without bias, or with only

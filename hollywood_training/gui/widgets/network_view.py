@@ -6,6 +6,9 @@
 * Each **connection** is drawn from the layer's real connection matrix: cyan for positive
   weights, indigo for negative ones, width and opacity growing with magnitude. Lines that
   changed most in the last epoch glow white-hot.
+* The **recurrent connections** of a recurrent layer (its ``Recurrence``) use the same
+  colours: arcs beside its column from each neuron back into the column, or curves back
+  from its projection's column.
 * Neuron cores are tinted by their **bias**. Activation / normalisation operations are
   listed under each layer's name.
 * Ambient animation: glowing neurons and **signals** travelling along connections, more
@@ -41,7 +44,13 @@ from ... import formatting as fmt
 from ...sync.events import TrainingState
 from ...sync.session import SessionState
 from ...tracking.architecture import ArchitectureInfo
-from ...tracking.weights import DEFAULT_NEURON_LIMIT, LayerWeights, WeightSnapshot, display_indices
+from ...tracking.weights import (
+    DEFAULT_NEURON_LIMIT,
+    LayerWeights,
+    Recurrence,
+    WeightSnapshot,
+    display_indices,
+)
 from ..animation import AnimationClock, pulse
 from ..theme import PALETTE, color, glow_sprite, mix, mono_font
 from .hud import HudPanel
@@ -73,6 +82,9 @@ class Column:
     kind: str = "hidden"  # "input" | "hidden" | "output"
     x: float = 0.0
     ys: np.ndarray = field(default_factory=lambda: np.zeros(0))
+    layer: str | None = None  # the layer whose outputs the column shows (not input columns)
+    recurrence: Recurrence | None = None  # that layer's recurrent connections, when drawn
+    loop_source: int | None = None  # the column the recurrence comes from (itself or .proj)
 
 
 @dataclass(slots=True)
@@ -150,10 +162,34 @@ def build_columns(
                 labels=architecture.output_labels if last else None,
                 bias=layer_weights.bias if layer_weights is not None else None,
                 kind="output" if last else "hidden",
+                layer=layer.name,
+                recurrence=layer_weights.recurrence if layer_weights is not None else None,
             )
         )
         links.append(Link(layer.name, len(columns) - 2, len(columns) - 1, layer_weights))
+    _attach_recurrences(columns)
     return columns, links
+
+
+def _attach_recurrences(columns: list[Column]) -> None:
+    """Point each recurrence at the column it comes from: its own column, or the column of
+    its projection layer. One whose source column is not drawn with the same neurons is
+    dropped (``recurrence = None``)."""
+    by_layer = {column.layer: k for k, column in enumerate(columns) if column.layer is not None}
+    for column in columns:
+        recurrence = column.recurrence
+        if recurrence is None:
+            continue
+        source = by_layer.get(recurrence.source)
+        shape = (len(column.indices), len(recurrence.source_index))
+        if (
+            source is None
+            or recurrence.matrix.shape != shape
+            or not np.array_equal(columns[source].indices, recurrence.source_index)
+        ):
+            column.recurrence = None
+            continue
+        column.loop_source = source
 
 
 def _segments(x0: float, y0: np.ndarray, x1: float, y1: np.ndarray, offset: float) -> list[QLineF]:
@@ -167,6 +203,38 @@ def _segments(x0: float, y0: np.ndarray, x1: float, y1: np.ndarray, offset: floa
     return [
         QLineF(x0 + ox, a + oy, x1 + ox, b + oy)
         for ox, oy, a, b in zip(nx, ny, y0.tolist(), y1.tolist(), strict=True)
+    ]
+
+
+def _bezier_lines(
+    x0: np.ndarray,
+    y0: np.ndarray,
+    x1: np.ndarray,
+    y1: np.ndarray,
+    x2: np.ndarray,
+    y2: np.ndarray,
+    x3: np.ndarray,
+    y3: np.ndarray,
+    steps: int = 12,
+) -> list[QLineF]:
+    """1 px segments along cubic Bézier curves, one curve per entry of the (broadcast)
+    control-point coordinates."""
+    shape = np.broadcast(x0, y0, x1, y1, x2, y2, x3, y3).shape
+    t = np.linspace(0.0, 1.0, steps + 1).reshape(-1, *([1] * len(shape)))
+    a, b, c, d = (1 - t) ** 3, 3 * (1 - t) ** 2 * t, 3 * (1 - t) * t**2, t**3
+    xs = a * x0 + b * x1 + c * x2 + d * x3  # (steps + 1, curves)
+    ys = a * y0 + b * y1 + c * y2 + d * y3
+    xs = np.broadcast_to(xs, (steps + 1, *shape)).reshape(steps + 1, -1)
+    ys = np.broadcast_to(ys, (steps + 1, *shape)).reshape(steps + 1, -1)
+    return [
+        QLineF(ax, ay, bx, by)
+        for ax, ay, bx, by in zip(
+            xs[:-1].ravel().tolist(),
+            ys[:-1].ravel().tolist(),
+            xs[1:].ravel().tolist(),
+            ys[1:].ravel().tolist(),
+            strict=True,
+        )
     ]
 
 
@@ -421,6 +489,9 @@ class NetworkView(HudPanel):
                     self._paint_bridge(painter, link)
                 else:
                     self._paint_connections(painter, link)
+            for column in self._columns:
+                if column.recurrence is not None and column.loop_source is not None:
+                    self._paint_recurrence(painter, column)
             self._paint_neurons(painter)
             self._paint_labels(painter)
         painter.end()
@@ -446,14 +517,74 @@ class NetworkView(HudPanel):
                 [QLineF(source.x, ys, target.x, yt) for ys in source.ys for yt in target.ys]
             )
             return
-        matrix = link.weights.matrix
+
+        def lines(rows: np.ndarray, cols: np.ndarray, offset: float) -> list[QLineF]:
+            return _segments(source.x, source.ys[cols], target.x, target.ys[rows], offset)
+
+        self._paint_weighted(painter, link.weights.matrix, link.weights.delta, lines)
+
+    def _paint_recurrence(self, painter: QPainter, column: Column) -> None:
+        """A recurrent layer's ``Recurrence``: arcs on the right of its column, from each
+        neuron back into the column (a loop for a neuron that feeds itself), or - from a
+        projection - curves sagging below the straight connections, from the projection's
+        column back to the layer's column."""
+        recurrence, source = column.recurrence, self._columns[column.loop_source]
+        r = self._radius
+        if source is column:
+            following = [c.x for c in self._columns if c.x > column.x + 1.0]
+            if following:  # up to just before halfway to the next column
+                room = 0.45 * (min(following) - column.x)
+            else:  # the last column: up to the panel's edge
+                room = self.content_rect().right() - column.x - r - 6.0
+            longest = max(2.6 * r, room - r)
+
+            def lines(rows: np.ndarray, cols: np.ndarray, offset: float) -> list[QLineF]:
+                y_from, y_to = source.ys[cols], column.ys[rows]
+                span = np.abs(y_to - y_from)
+                bulge = np.clip(2.6 * r + 0.35 * span, 2.6 * r, longest)
+                lift = np.where(span < 0.5, 0.7 * bulge, 0.0)  # a neuron that feeds itself
+                x0 = column.x + r + offset
+                return _bezier_lines(
+                    x0, y_from, x0 + bulge, y_from - lift, x0 + bulge, y_to + lift, x0, y_to
+                )
+
+        else:
+            reach = column.x - source.x  # negative: the projection is to the right
+            sag = 0.28 * abs(reach)
+
+            def lines(rows: np.ndarray, cols: np.ndarray, offset: float) -> list[QLineF]:
+                y_from, y_to = source.ys[cols] + offset, column.ys[rows] + offset
+                return _bezier_lines(
+                    source.x,
+                    y_from,
+                    source.x + reach / 3,
+                    y_from + sag,
+                    column.x - reach / 3,
+                    y_to + sag,
+                    column.x,
+                    y_to,
+                )
+
+        self._paint_weighted(painter, recurrence.matrix, recurrence.delta, lines, fade=0.8)
+
+    def _paint_weighted(
+        self,
+        painter: QPainter,
+        matrix: np.ndarray,
+        delta: np.ndarray | None,
+        lines,
+        *,
+        fade: float = 1.0,
+    ) -> None:
+        """Draw one weight matrix as 1 px lines, batched in buckets of strength, sign and
+        change; ``lines(rows, cols, offset)`` gives the lines of those matrix entries,
+        shifted ``offset`` px for the extra passes of strong weights."""
         peak = float(np.abs(matrix).max()) if matrix.size else 0.0
         if peak <= 0:
             return
         strength = np.abs(matrix) / peak
         level = np.minimum((strength**0.75 * LEVELS).astype(int), LEVELS - 1)
         hot = np.zeros(matrix.shape, dtype=int)
-        delta = link.weights.delta
         if delta is not None and delta.size and np.abs(delta).max() > 0:
             change = np.abs(delta) / np.abs(delta).max()
             hot = np.minimum((change**0.5 * HOT_LEVELS).astype(int), HOT_LEVELS - 1)
@@ -471,9 +602,8 @@ class NetworkView(HudPanel):
             )
             share = (lev + 0.5) / LEVELS
             rows, cols = np.unravel_index(group, matrix.shape)
-            y0, y1 = source.ys[cols], target.ys[rows]
             tint = mix(color(PALETTE.accent if sign else PALETTE.indigo), ice, heat * 0.28)
-            alpha = 16 + 205 * share + 18 * heat
+            alpha = (16 + 205 * share + 18 * heat) * fade
             passes = [(0.0, 1.0)]
             if share >= 0.5:
                 passes += [(-0.7, 0.5), (0.7, 0.5)]
@@ -483,7 +613,7 @@ class NetworkView(HudPanel):
                 ink = QColor(tint)
                 ink.setAlpha(min(255, int(alpha * opacity)))
                 painter.setPen(QPen(ink, 1.0))
-                painter.drawLines(_segments(source.x, y0, target.x, y1, offset))
+                painter.drawLines(lines(rows, cols, offset))
 
     def _paint_bridge(self, painter: QPainter, link: Link) -> None:
         a, b = self._columns[link.source], self._columns[link.target]
