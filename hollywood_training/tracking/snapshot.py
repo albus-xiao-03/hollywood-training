@@ -14,6 +14,11 @@ Every connection layer is reduced to a **connection matrix** shaped ``(out, in)`
 * ``Bilinear``: the inputs are x1's features, then x2's. ``W[j, i, k]`` links x1 feature
   ``i`` and x2 feature ``k`` to output ``j``: an x1 feature gets the mean over ``k``, an x2
   feature the mean over ``i``.
+* ``RNN`` / ``LSTM`` / ``GRU``, per stage (stacked layer): the signed mean over the gate
+  blocks of ``weight_ih``, one row block per direction (forward first). The recurrent
+  weights ``weight_hh`` become the layer's :class:`Recurrence`, block-diagonal per
+  direction. A ``proj_size`` projection stage is ``weight_hr``, block-diagonal. The cells
+  (``RNNCell``, ...) are read like a one-layer recurrent layer.
 * Any other weight owner: its primary weight tensor read as ``(out, in, ...)``, with the
   signed mean over the remaining dimensions.
 
@@ -38,15 +43,22 @@ from .layers import (
     BILINEAR_LAYERS,
     CONVOLUTION_LAYERS,
     EMBEDDING_LAYERS,
+    RECURRENT_CELLS,
+    RECURRENT_LAYERS,
     TRANSPOSED_CONVOLUTION_LAYERS,
     attention_projections,
+    connection_shape,
+    gate_count,
     is_uninitialized,
     primary_weight,
-    weight_tensors,
+    recurrent_stages,
+    recurrent_tensors,
+    stage_weight_tensors,
 )
 from .weights import (
     DEFAULT_NEURON_LIMIT,
     LayerWeights,
+    Recurrence,
     TensorStats,
     WeightSnapshot,
     WeightStats,
@@ -119,10 +131,38 @@ def _block_diagonal(
     return matrix
 
 
+def _gate_mean(tensor: torch.Tensor, gates: int) -> torch.Tensor:
+    """``(G·H, ...)`` -> ``(H, ...)``: the signed mean over the ``G`` gate blocks a recurrent
+    tensor stacks along its rows (LSTM: input, forget, cell, output; GRU: reset, update,
+    new), as the kernel mean does for convolutions."""
+    tensor = tensor.detach().float()
+    if gates == 1:
+        return tensor
+    return tensor.reshape(gates, tensor.shape[0] // gates, *tensor.shape[1:]).mean(dim=0)
+
+
+def _recurrent_matrix(
+    module: nn.Module, stage: int, projection: bool, rows: torch.Tensor, cols: torch.Tensor
+) -> torch.Tensor:
+    if projection:  # weight_hr (P, H) per direction: each direction projects its own state
+        blocks = [tensor.detach() for tensor in recurrent_tensors(module, "weight_hr", stage)]
+        return _block_diagonal(blocks, rows, cols)
+    gates = gate_count(module)
+    directions = recurrent_tensors(module, "weight_ih", stage)  # (G·H, in) each
+    full = torch.cat([_gate_mean(tensor, gates) for tensor in directions], dim=0)
+    return full.index_select(0, rows).index_select(1, cols)  # (D·H, in): forward rows first
+
+
 def connection_matrix(
-    module: nn.Module, in_index: np.ndarray, out_index: np.ndarray
+    module: nn.Module,
+    in_index: np.ndarray,
+    out_index: np.ndarray,
+    *,
+    stage: int = 0,
+    projection: bool = False,
 ) -> torch.Tensor | None:
-    """Connection matrix of ``module`` restricted to the given indices, shape ``(out, in)``."""
+    """Connection matrix of ``module`` restricted to the given indices, shape ``(out, in)``;
+    ``stage`` and ``projection`` select a stage of a recurrent layer."""
     weight = primary_weight(module)
     if weight is None:
         return None
@@ -130,6 +170,9 @@ def connection_matrix(
     device = weight.device
     rows_out = torch.as_tensor(out_index, dtype=torch.long, device=device)
     cols_in = torch.as_tensor(in_index, dtype=torch.long, device=device)
+
+    if isinstance(module, RECURRENT_LAYERS + RECURRENT_CELLS):
+        return _recurrent_matrix(module, stage, projection, rows_out, cols_in)
 
     if isinstance(module, EMBEDDING_LAYERS):  # (num_embeddings, dim)
         return weight.index_select(0, cols_in).index_select(1, rows_out).float().T
@@ -158,8 +201,27 @@ def connection_matrix(
     return _kernel_mean(weight.index_select(0, rows_out).index_select(1, cols_in))
 
 
-def _drawn_tensors(module: nn.Module) -> list[torch.Tensor]:
-    """The weight tensors the connection matrix of ``module`` is read from."""
+def recurrent_matrix(
+    module: nn.Module, out_index: np.ndarray, source_index: np.ndarray, *, stage: int = 0
+) -> torch.Tensor | None:
+    """The recurrent connections of stacked layer ``stage`` of a recurrent layer or cell,
+    restricted to the given indices: the signed gate mean of ``weight_hh``, block-diagonal
+    per direction. Rows are the stage's outputs (``D·H``), columns the outputs that feed
+    back (``D·H``, or ``D·P`` from the projection). ``None`` for other modules."""
+    tensors = recurrent_tensors(module, "weight_hh", stage)
+    if not tensors:
+        return None
+    blocks = [_gate_mean(tensor, gate_count(module)) for tensor in tensors]
+    device = tensors[0].device
+    rows = torch.as_tensor(out_index, dtype=torch.long, device=device)
+    cols = torch.as_tensor(source_index, dtype=torch.long, device=device)
+    return _block_diagonal(blocks, rows, cols)
+
+
+def _drawn_tensors(module: nn.Module, stage: int, projection: bool) -> list[torch.Tensor]:
+    """The weight tensors the connection matrix of a layer (stage) is read from."""
+    if isinstance(module, RECURRENT_LAYERS + RECURRENT_CELLS):
+        return list(recurrent_tensors(module, "weight_hr" if projection else "weight_ih", stage))
     projections = attention_projections(module)
     if projections:
         return [tensor for _name, tensor in projections]
@@ -172,6 +234,19 @@ def _stats_of(tensors: Sequence[torch.Tensor]) -> WeightStats:
     if len(tensors) == 1:
         return weight_stats(tensors[0])
     return weight_stats(torch.cat([tensor.detach().reshape(-1) for tensor in tensors]))
+
+
+def _recurrent_bias(module: nn.Module, stage: int, out_index: np.ndarray) -> np.ndarray | None:
+    """The gate mean of ``bias_ih + bias_hh`` per direction, at ``out_index``."""
+    inputs = recurrent_tensors(module, "bias_ih", stage)
+    hidden = recurrent_tensors(module, "bias_hh", stage)
+    if not inputs or len(inputs) != len(hidden):
+        return None
+    gates = gate_count(module)
+    pairs = zip(inputs, hidden, strict=True)  # same length: checked above
+    full = torch.cat([_gate_mean(a.detach() + b.detach(), gates) for a, b in pairs])
+    index = torch.as_tensor(out_index, dtype=torch.long, device=full.device)
+    return _to_numpy(full.index_select(0, index))
 
 
 def _sampled_bias(module: nn.Module, out_index: np.ndarray, out_features: int) -> np.ndarray | None:
@@ -188,10 +263,15 @@ def _sampled_bias(module: nn.Module, out_index: np.ndarray, out_features: int) -
 
 
 def tensor_stats(
-    module: nn.Module, known: dict[int, WeightStats] | None = None
+    module: nn.Module,
+    known: dict[int, WeightStats] | None = None,
+    *,
+    stage: int = 0,
+    projection: bool = False,
 ) -> tuple[TensorStats, ...]:
-    """:class:`TensorStats` of every weight tensor ``module`` holds; ``known`` maps
-    ``id(tensor)`` to statistics computed already, which are reused."""
+    """:class:`TensorStats` of every weight tensor of a layer - for a recurrent layer, of
+    the given stage only; ``known`` maps ``id(tensor)`` to statistics computed already,
+    which are reused."""
     known = known or {}
     return tuple(
         TensorStats(
@@ -199,8 +279,35 @@ def tensor_stats(
             shape=tuple(int(size) for size in tensor.shape),
             stats=known[id(tensor)] if id(tensor) in known else weight_stats(tensor),
         )
-        for name, tensor in weight_tensors(module)
+        for name, tensor in stage_weight_tensors(module, stage, projection)
     )
+
+
+def _recurrence(
+    layer: TrackedLayer, out_index: np.ndarray, limit: int, previous: Recurrence | None
+) -> Recurrence | None:
+    """The :class:`Recurrence` of a recurrent stage (not of a projection stage)."""
+    module = layer.module
+    if layer.projection or not isinstance(module, RECURRENT_LAYERS + RECURRENT_CELLS):
+        return None
+    if (layer.stage, True) in recurrent_stages(module):  # fed back from the projection
+        source = f"{layer.name}.proj"
+        source_features = connection_shape(module, stage=layer.stage, projection=True)[1] or 0
+    else:
+        source, source_features = layer.name, layer.out_features or 0
+    source_index = display_indices(source_features, limit)
+    matrix_tensor = recurrent_matrix(module, out_index, source_index, stage=layer.stage)
+    if matrix_tensor is None:
+        return None
+    matrix = _to_numpy(matrix_tensor)
+    delta = None
+    if (
+        previous is not None
+        and previous.matrix.shape == matrix.shape
+        and np.array_equal(previous.source_index, source_index)
+    ):
+        delta = _readonly(matrix - previous.matrix)
+    return Recurrence(source, matrix, delta, _readonly(source_index))
 
 
 def capture_layer(
@@ -208,19 +315,29 @@ def capture_layer(
 ) -> LayerWeights | None:
     """Snapshot one layer; ``None`` while its parameters are still uninitialised."""
     in_features, out_features = layer.in_features, layer.out_features
-    drawn = _drawn_tensors(layer.module)
+    module, stage, projection = layer.module, layer.stage, layer.projection
+    drawn = _drawn_tensors(module, stage, projection)
     if not drawn or in_features is None or out_features is None:
         return None
     in_index = display_indices(in_features, limit)
     out_index = display_indices(out_features, limit)
+    same_outputs = previous is not None and np.array_equal(previous.out_index, out_index)
     with torch.no_grad():
-        matrix_tensor = connection_matrix(layer.module, in_index, out_index)
+        matrix_tensor = connection_matrix(
+            module, in_index, out_index, stage=stage, projection=projection
+        )
         if matrix_tensor is None:
             return None
         matrix = _to_numpy(matrix_tensor)
-        bias = _sampled_bias(layer.module, out_index, out_features)
+        if isinstance(module, RECURRENT_LAYERS + RECURRENT_CELLS):
+            bias = None if projection else _recurrent_bias(module, stage, out_index)
+        else:
+            bias = _sampled_bias(module, out_index, out_features)
         stats = _stats_of(drawn)
-        tensors = tensor_stats(layer.module, {id(drawn[0]): stats} if len(drawn) == 1 else {})
+        known = {id(drawn[0]): stats} if len(drawn) == 1 else {}
+        tensors = tensor_stats(module, known, stage=stage, projection=projection)
+        earlier = previous.recurrence if previous is not None and same_outputs else None
+        recurrence = _recurrence(layer, out_index, limit, earlier)
 
     delta = None
     update_ratio = None
@@ -245,6 +362,7 @@ def capture_layer(
         stats=stats,
         update_ratio=update_ratio,
         tensors=tensors,
+        recurrence=recurrence,
     )
 
 

@@ -57,6 +57,7 @@ data on another thread, or in the window process, which imports no torch.
 | weight tensor | an initialised parameter with two or more dimensions, held directly by a module (`weight_tensors`) |
 | weight owner | a module that holds a weight tensor and is not an operation class: `Bilinear`, `RNN`, `LSTM`, `GRU`, `MultiheadAttention`, custom modules. A weight owner can have children: `MultiheadAttention` holds `in_proj_weight` next to its `out_proj` child |
 | connection layer | module with role `CONNECTION`: `Linear`, `Conv*`, `ConvTranspose*`, `Embedding`, `EmbeddingBag` (subclasses and lazy variants included), or any other weight owner. So every weight tensor of the network belongs to a connection layer and is tracked |
+| stage | one drawn layer of a recurrent module: each stacked layer of an `RNN`, `LSTM` or `GRU` (`rnn`, `rnn.l1`, ...), followed by its projection (`rnn.proj`) when `proj_size` is set. Its recurrent weights are its `Recurrence` |
 | operation | leaf module with an activation, normalization, regularization, pooling or reshape role. It is attached to the connection layer before it, or to the input |
 | unsupported | leaf module with role `OTHER`, i.e. without a weight tensor and not an operation (e.g. `nn.ZeroPad2d`). It is listed by name and not drawn |
 | connection matrix | `(out, in)` matrix per connection layer: entry `[j, i]` says how strongly input `i` feeds output `j` |
@@ -69,11 +70,11 @@ data on another thread, or in the window process, which imports no torch.
 |---|---|---|---|
 | `decorator.py` | [Tracking Decorator](Tracking-Decorator) | yes | `track`, `TrackOptions`, `track_options`, `is_tracked` |
 | `roles.py` | [Tracking Layer Roles](Tracking-Layer-Roles) | no | `LayerRole` |
-| `layers.py` | [Tracking Layer Classification](Tracking-Layer-Classification) | yes | `classify`, `connection_shape`, `summarize`, `weight_tensors`, class tuples |
+| `layers.py` | [Tracking Layer Classification](Tracking-Layer-Classification) | yes | `classify`, `connection_shape`, `summarize`, `weight_tensors`, `recurrent_stages`, class tuples |
 | `architecture.py` | [Tracking Architecture Model](Tracking-Architecture-Model) | no (type hints only) | `ArchitectureInfo`, `LayerInfo`, `OperationInfo` and their live counterparts |
 | `inspector.py` | [Tracking Inspector](Tracking-Inspector) | yes | `build_architecture`, `ForwardTrace`, `static_order`, `leaf_modules`, `unwrap` |
-| `weights.py` | [Tracking Weight Data](Tracking-Weight-Data) | no (numpy) | `WeightSnapshot`, `LayerWeights`, `WeightStats`, `TensorStats`, `display_indices` |
-| `snapshot.py` | [Tracking Snapshots](Tracking-Snapshots) | yes | `capture`, `capture_layer`, `connection_matrix`, `weight_stats`, `tensor_stats` |
+| `weights.py` | [Tracking Weight Data](Tracking-Weight-Data) | no (numpy) | `WeightSnapshot`, `LayerWeights`, `WeightStats`, `TensorStats`, `Recurrence`, `display_indices` |
+| `snapshot.py` | [Tracking Snapshots](Tracking-Snapshots) | yes | `capture`, `capture_layer`, `connection_matrix`, `recurrent_matrix`, `weight_stats`, `tensor_stats` |
 | `tracker.py` | [Tracking Network Tracker](Tracking-Network-Tracker) | yes | `NetworkTracker`, `inspect_network` |
 
 ## Package exports (`__init__.py`)
@@ -85,7 +86,7 @@ first use (PEP 562):
 |---|---|---|
 | eager | `ArchitectureInfo`, `LayerInfo`, `LayerOperation`, `NetworkArchitecture`, `OperationInfo`, `TrackedLayer` | `.architecture` |
 | eager | `LayerRole` | `.roles` |
-| eager | `DEFAULT_NEURON_LIMIT`, `LayerWeights`, `TensorStats`, `WeightSnapshot`, `WeightStats`, `display_indices` | `.weights` |
+| eager | `DEFAULT_NEURON_LIMIT`, `LayerWeights`, `Recurrence`, `TensorStats`, `WeightSnapshot`, `WeightStats`, `display_indices` | `.weights` |
 | lazy | `TrackOptions`, `is_tracked`, `track`, `track_options` | `.decorator` |
 | lazy | `ForwardTrace`, `build_architecture`, `leaf_modules`, `static_order`, `unwrap` | `.inspector` |
 | lazy | `classify`, `connection_shape`, `summarize` | `.layers` |
@@ -96,12 +97,13 @@ first use (PEP 562):
   imports the module with `import_module(module, __name__)` and caches the value in the
   package globals, so later lookups skip `__getattr__`. A name outside the map raises
   `AttributeError`.
-* `__dir__()` returns `sorted(__all__)`, the 30 names above.
+* `__dir__()` returns `sorted(__all__)`, the 31 names above.
 * `import hollywood_training.tracking` and unpickling `ArchitectureInfo` or
   `WeightSnapshot` therefore never import torch. Accessing any lazy name does.
-* Other public helpers (`weight_stats`, `tensor_stats`, `count_parameters`,
-  `architecture_signature`, `weight_of`, `weight_tensors`, `primary_weight`,
-  `is_uninitialized`, ...) are not re-exported. Import them from their module.
+* Other public helpers (`weight_stats`, `tensor_stats`, `recurrent_matrix`,
+  `count_parameters`, `architecture_signature`, `weight_of`, `weight_tensors`,
+  `primary_weight`, `recurrent_stages`, `is_uninitialized`, ...) are not re-exported.
+  Import them from their module.
 * The top-level package re-exports `track`, `is_tracked`, `NetworkTracker` and
   `inspect_network`, lazily as well (see [API Reference](API-Reference)).
 
@@ -112,8 +114,9 @@ Structure comes from `named_modules()`, `children()`, `parameters()`,
 public `torch.nn` classes looked up by name, and `type(module).__name__`. Details come from
 public module attributes: `weight`, `bias`, `in_channels`, `out_channels`, `groups`,
 `kernel_size`, `in1_features`, `in2_features`, `out_features`, `embed_dim`, `kdim`,
-`vdim`, `num_heads`, `in_proj_bias`, `p`, `negative_slope`, `num_features`,
-`normalized_shape`, and `.module` of `DataParallel` / `DistributedDataParallel` wrappers.
+`vdim`, `num_heads`, `in_proj_bias`, `input_size`, `hidden_size`, `num_layers`,
+`bidirectional`, `proj_size`, `p`, `negative_slope`, `num_features`, `normalized_shape`,
+and `.module` of `DataParallel` / `DistributedDataParallel` wrappers.
 The network inside `torch.compile`'s `OptimizedModule` is its `_orig_mod` child, read
 through `named_children()`. Weights are copied with ordinary tensor operations under
 `torch.no_grad()`. User code is never inspected.

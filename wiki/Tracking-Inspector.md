@@ -110,8 +110,11 @@ class ForwardTrace:
 2. `CONNECTION`: the first time a module object is seen (compared by `id`), it becomes a
    new `TrackedLayer`, with `summarize()`, `connection_shape()` and
    `count_parameters(module)` (with `recurse=False` for a weight owner with children:
-   the parameters of a child that is a layer count at that child), and is made `current`. When the same object comes again,
-   its existing layer becomes `current` again, so it is drawn once.
+   the parameters of a child that is a layer count at that child), and is made `current`.
+   A recurrent module becomes one `TrackedLayer` per stage, in `recurrent_stages()`
+   order, named with `stage_name()`. Each counts the parameters of its stage, and the
+   last stage is made `current`. When the same object comes again, its existing (last)
+   layer becomes `current` again, so it is drawn once.
 3. Operation roles: a `LayerOperation` is appended to `current.operations`, or to
    `input_operations` while there is no `current` layer.
 4. `OTHER`: the label is appended to `unsupported` unless it is already there. `current`

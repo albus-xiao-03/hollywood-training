@@ -105,7 +105,11 @@ class LayerOperation:
 
 @dataclass(slots=True)
 class TrackedLayer:
-    """A connection layer and the operations applied to its output, in execution order."""
+    """A connection layer and the operations applied to its output, in execution order.
+
+    A recurrent module is drawn as several layers, one per stacked layer and projection:
+    ``stage`` is the stacked layer, ``projection`` marks the ``proj_size`` projection.
+    """
 
     name: str
     module: nn.Module
@@ -114,6 +118,8 @@ class TrackedLayer:
     out_features: int | None
     parameters: int
     operations: list[LayerOperation] = field(default_factory=list)
+    stage: int = 0
+    projection: bool = False
 
     @property
     def type_name(self) -> str:

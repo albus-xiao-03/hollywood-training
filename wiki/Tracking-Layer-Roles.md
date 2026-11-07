@@ -33,7 +33,7 @@ class LayerRole(str, Enum):
 
 | Member | Assigned by `classify()` to ([Tracking Layer Classification](Tracking-Layer-Classification)) | Effect in `build_architecture()` |
 |---|---|---|
-| `CONNECTION` | `Linear`, `Conv1d/2d/3d`, `ConvTranspose1d/2d/3d`, `Embedding`, `EmbeddingBag`, `Bilinear`, `MultiheadAttention` and their subclasses. Also any module outside the lists below that holds a weight tensor (an initialised parameter with two or more dimensions): `RNN`, `LSTM`, `GRU`, custom modules | becomes a `TrackedLayer`, a set of connections in the drawing |
+| `CONNECTION` | `Linear`, `Conv1d/2d/3d`, `ConvTranspose1d/2d/3d`, `Embedding`, `EmbeddingBag`, `Bilinear`, `MultiheadAttention`, `RNN`, `LSTM`, `GRU`, `RNNCell`, `LSTMCell`, `GRUCell` and their subclasses. Also any module outside the lists below that holds a weight tensor (an initialised parameter with two or more dimensions), e.g. a custom module | becomes a `TrackedLayer`, a set of connections in the drawing |
 | `ACTIVATION` | `ReLU`, `GELU`, `Tanh`, `Softmax`, ... (28 class names) | `LayerOperation` attached to the current layer |
 | `NORMALIZATION` | `BatchNorm*`, `LayerNorm`, `GroupNorm`, `RMSNorm`, ... (12 class names) | `LayerOperation` |
 | `REGULARIZATION` | `Dropout`, `Dropout1d/2d/3d`, `AlphaDropout`, `FeatureAlphaDropout` | `LayerOperation` |

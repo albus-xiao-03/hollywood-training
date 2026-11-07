@@ -111,7 +111,7 @@ or tensors:
 | Data | Module | Produced by |
 |---|---|---|
 | `ArchitectureInfo`, `LayerInfo`, `OperationInfo` | `tracking.architecture` | `NetworkArchitecture.describe()` |
-| `WeightSnapshot`, `LayerWeights`, `WeightStats`, `TensorStats` | `tracking.weights` | `NetworkTracker.snapshot()` |
+| `WeightSnapshot`, `LayerWeights`, `WeightStats`, `TensorStats`, `Recurrence` | `tracking.weights` | `NetworkTracker.snapshot()` |
 | `SessionInfo`, `EpochRecord`, events | `sync.events` | `TrainingManager` |
 | `UsageSample`, `GpuUsage` | `monitor.usage` | `SystemMonitor.sample()` |
 

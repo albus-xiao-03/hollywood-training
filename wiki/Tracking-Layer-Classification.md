@@ -14,6 +14,10 @@ an operation class is a connection layer, a **weight owner**. So every weight ma
 network belongs to a connection layer: `Bilinear`, `RNN`, `LSTM`, `GRU`,
 `MultiheadAttention` and custom modules included.
 
+A recurrent layer (`RNN`, `LSTM`, `GRU`) is drawn as one **stage** per stacked layer,
+each followed by a projection stage when `proj_size` is set. `connection_shape` and
+`summarize` take the stage as keyword arguments.
+
 ## Responsibilities
 
 * Give every module a role (`classify`). Every weight owner is a connection layer.
@@ -21,6 +25,9 @@ network belongs to a connection layer: `Bilinear`, `RNN`, `LSTM`, `GRU`,
   matrix is read from (`primary_weight`).
 * Report the input and output features of a connection layer (`connection_shape`).
 * Describe a module in a few characters (`summarize`).
+* Split a recurrent layer into stages and find each stage's parameters
+  (`recurrent_stages`, `stage_name`, `recurrent_parameters`, `recurrent_tensors`,
+  `stage_weight_tensors`, `gate_count`).
 * Recognise the placeholder parameters of lazy modules (`is_uninitialized`, `weight_of`).
 
 ## API
@@ -40,6 +47,8 @@ too, including the lazy variants (`LazyLinear`, `LazyConv2d`, ...).
 | `EMBEDDING_LAYERS` | `Embedding`, `EmbeddingBag` |
 | `BILINEAR_LAYERS` | `Bilinear` |
 | `ATTENTION_LAYERS` | `MultiheadAttention` |
+| `RECURRENT_LAYERS` | `RNN`, `LSTM`, `GRU` |
+| `RECURRENT_CELLS` | `RNNCell`, `LSTMCell`, `GRUCell` |
 | `ACTIVATION_LAYERS` | `ReLU`, `ReLU6`, `LeakyReLU`, `PReLU`, `RReLU`, `ELU`, `SELU`, `CELU`, `GELU`, `SiLU`, `Mish`, `Sigmoid`, `LogSigmoid`, `Hardsigmoid`, `Tanh`, `Hardtanh`, `Tanhshrink`, `Hardswish`, `Softplus`, `Softsign`, `Softshrink`, `Hardshrink`, `Threshold`, `GLU`, `Softmax`, `Softmin`, `LogSoftmax`, `Softmax2d` |
 | `NORMALIZATION_LAYERS` | `BatchNorm1d`, `BatchNorm2d`, `BatchNorm3d`, `SyncBatchNorm`, `LayerNorm`, `GroupNorm`, `InstanceNorm1d`, `InstanceNorm2d`, `InstanceNorm3d`, `LocalResponseNorm`, `RMSNorm`, `CrossMapLRN2d` |
 | `REGULARIZATION_LAYERS` | `Dropout`, `Dropout1d`, `Dropout2d`, `Dropout3d`, `AlphaDropout`, `FeatureAlphaDropout` |
@@ -51,7 +60,7 @@ too, including the lazy variants (`LazyLinear`, `LazyConv2d`, ...).
 LINEAR_LAYERS = _public_classes("Linear")      # every tuple above is built this way
 CONNECTION_LAYERS = (
     LINEAR_LAYERS + CONVOLUTION_LAYERS + TRANSPOSED_CONVOLUTION_LAYERS + EMBEDDING_LAYERS
-    + BILINEAR_LAYERS + ATTENTION_LAYERS
+    + BILINEAR_LAYERS + ATTENTION_LAYERS + RECURRENT_LAYERS + RECURRENT_CELLS
 )
 OPERATION_ROLES = frozenset({LayerRole.ACTIVATION, LayerRole.NORMALIZATION,
                              LayerRole.REGULARIZATION, LayerRole.POOLING, LayerRole.RESHAPE})
@@ -98,13 +107,54 @@ def classify(module: nn.Module) -> LayerRole
 Checks run in this order, and the first match wins: `CONNECTION_LAYERS` → `CONNECTION`,
 `ACTIVATION_LAYERS`, `NORMALIZATION_LAYERS`, `REGULARIZATION_LAYERS`, `POOLING_LAYERS`,
 `RESHAPE_LAYERS`, then a non-empty `weight_tensors(module)` → `CONNECTION` (any other
-weight owner: the recurrent layers, custom modules), and otherwise `OTHER`. It works on any module, with or without children.
+weight owner, e.g. a custom module), and otherwise `OTHER`. It works on any module, with
+or without children.
+
+### Recurrent layers
 
 ```python
-def connection_shape(module: nn.Module) -> tuple[int | None, int | None]
+def gate_count(module: nn.Module) -> int
+def recurrent_stages(module: nn.Module) -> list[tuple[int, bool]]
+def stage_name(name: str, stage: int = 0, projection: bool = False) -> str
+def recurrent_parameters(
+    module: nn.Module, stage: int = 0, projection: bool = False
+) -> list[tuple[str, nn.Parameter]]
+def recurrent_tensors(module: nn.Module, kind: str, stage: int = 0) -> list[nn.Parameter]
+def stage_weight_tensors(
+    module: nn.Module, stage: int = 0, projection: bool = False
+) -> list[tuple[str, nn.Parameter]]
 ```
 
-Returns `(in_features, out_features)`:
+* `gate_count`: the gate blocks stacked along the rows of a recurrent weight: 4 for
+  `LSTM` (input, forget, cell, output), 3 for `GRU` (reset, update, new), 1 for `RNN`,
+  their cells alike.
+* `recurrent_stages`: `(stacked layer, projection)` of every drawn stage of an `RNN`,
+  `LSTM` or `GRU`, in the order data flows: `[(0, False), (1, False)]` for two stacked
+  layers, `[(0, False), (0, True), (1, False), (1, True)]` with `proj_size`. Any other
+  module, cells included, is the single stage `[(0, False)]`.
+* `stage_name`: `rnn` for stacked layer 0, `rnn.l1` for layer 1, plus `.proj` for a
+  projection (`rnn.proj`, `rnn.l1.proj`). A recurrent module has no children, so these
+  names never collide with module paths.
+* `recurrent_parameters`: the parameters of one stage, every direction in registration
+  order: `weight_ih`, `weight_hh`, `bias_ih` and `bias_hh` of the stacked layer (with
+  the `_l<k>` and `_reverse` suffixes), or its `weight_hr` for a projection stage. All
+  parameters of a cell. Empty for other modules.
+* `recurrent_tensors`: one kind (`weight_ih`, `weight_hh`, `weight_hr`, `bias_ih`,
+  `bias_hh`) of a stacked layer, one parameter per direction, forward first. Empty when
+  the module has none, e.g. with `bias=False`.
+* `stage_weight_tensors`: the weight tensors of one drawn stage: the stage's parameters
+  with two or more dimensions for a recurrent layer or cell, otherwise
+  `weight_tensors(module)`.
+
+```python
+def connection_shape(
+    module: nn.Module, *, stage: int = 0, projection: bool = False
+) -> tuple[int | None, int | None]
+```
+
+Returns `(in_features, out_features)`. `stage` and `projection` select a stage of a
+recurrent layer; every other module has only stage 0. Below, `D` is 2 for a
+bidirectional layer and 1 otherwise, `H` is `hidden_size` and `P` is `proj_size`:
 
 | Module | Result |
 |---|---|
@@ -113,10 +163,13 @@ Returns `(in_features, out_features)`:
 | `Conv*`, `ConvTranspose*` | `(in_channels, out_channels)` |
 | `Bilinear` | `(in1_features + in2_features, out_features)`: both inputs, x1 first |
 | `MultiheadAttention` | `(embed_dim, 3 * embed_dim)`: the outputs are the query, key and value projections. With separate projections the inputs are the query, key and value features: `(embed_dim + kdim + vdim, 3 * embed_dim)` |
+| `RNN`, `LSTM`, `GRU` stage `k` | `(input_size, D·H)` for `k = 0`, `(D·H, D·H)` above it, or `(D·P, D·H)` when the layers are projected: the stacked layer's input and its hidden state, forward units first |
+| their projection stage | `(D·H, D·P)` |
+| `RNNCell`, `LSTMCell`, `GRUCell` | `(input_size, hidden_size)` |
 | any other weight owner: `primary_weight` read as `(out, in, ...)` | `(shape[1], shape[0])`, e.g. `(in, out)` for a 2-D `weight` |
 
 ```python
-def summarize(module: nn.Module) -> str
+def summarize(module: nn.Module, *, stage: int = 0, projection: bool = False) -> str
 ```
 
 | Case | Format | Example |
@@ -124,6 +177,7 @@ def summarize(module: nn.Module) -> str
 | connection layer of unknown shape | `{name} (uninitialised)` | `LazyLinear (uninitialised)` |
 | `Bilinear` | `{name} {in1}+{in2}→{out}` | `Bilinear 3+4→2` |
 | `MultiheadAttention` | `{name} {in}→{out} h{num_heads}`, with `{in}` written `{embed_dim}+{kdim}+{vdim}` for separate projections | `MultiheadAttention 8→24 h2`, `MultiheadAttention 8+6+4→24 h2` |
+| recurrent stage | `{name} {in}→{out}`, a projection `{name} projection {in}→{out}`. Both directions are written `2×H`. ` L{k+1}/{num_layers}` follows when there are several stacked layers | `LSTM 3→5`, `GRU 3→2×5`, `RNN 5→5 L2/3`, `LSTM projection 2×5→2×2 L1/2`, `LSTMCell 3→5` |
 | connection layer | `{name} {in}→{out}`, plus ` k{kernel}` when the module has `kernel_size` (tuple parts joined by `x`) | `Linear 2→16`, `Conv2d 3→8 k3x3` |
 | regularization | `{name}(p={p:g})` | `Dropout(p=0.2)` |
 | `LeakyReLU` | `{name}({negative_slope:g})` | `LeakyReLU(0.1)` |
@@ -142,10 +196,12 @@ listed elsewhere therefore keeps its listed role: `LayerNorm((4, 5))` and `RMSNo
 
 * Uses `torch.nn` and [Tracking Layer Roles](Tracking-Layer-Roles).
 * [Tracking Inspector](Tracking-Inspector): `classify`, `connection_shape`, `summarize`,
-  `is_pass_through`, `is_uninitialized`, `OPERATION_ROLES`.
-* [Tracking Snapshots](Tracking-Snapshots): `primary_weight`, `weight_tensors`,
-  `attention_projections`, `is_uninitialized`, and the convolution, transposed
-  convolution, embedding, bilinear and attention tuples.
+  `is_pass_through`, `is_uninitialized`, `OPERATION_ROLES`, `recurrent_stages`,
+  `stage_name`, `recurrent_parameters`.
+* [Tracking Snapshots](Tracking-Snapshots): `primary_weight`, `attention_projections`,
+  `gate_count`, `recurrent_stages`, `recurrent_tensors`, `stage_weight_tensors`,
+  `connection_shape`, `is_uninitialized`, and the convolution, transposed convolution,
+  embedding, bilinear, attention and recurrent tuples.
 * [Training Descriptions](Training-Descriptions): `is_uninitialized`, to find the model's
   device.
 * Lazily exported: `classify`, `connection_shape`, `summarize`.
@@ -171,6 +227,13 @@ connection_shape(Projection()), summarize(Projection())   # ((3, 4), 'Projection
 attention = nn.MultiheadAttention(8, 2)   # a weight owner with a child (out_proj)
 classify(attention), summarize(attention)
 # (<LayerRole.CONNECTION: 'connection'>, 'MultiheadAttention 8→24 h2')
+
+from hollywood_training.tracking.layers import recurrent_stages, stage_name
+
+lstm = nn.LSTM(3, 5, num_layers=2, bidirectional=True)
+[(stage_name("rnn", k, p), summarize(lstm, stage=k, projection=p))
+ for k, p in recurrent_stages(lstm)]
+# [('rnn', 'LSTM 3→2×5 L1/2'), ('rnn.l1', 'LSTM 2×5→2×5 L2/2')]
 ```
 
 ## Notes

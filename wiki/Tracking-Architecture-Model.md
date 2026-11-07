@@ -73,6 +73,8 @@ class TrackedLayer:
     out_features: int | None
     parameters: int
     operations: list[LayerOperation] = field(default_factory=list)
+    stage: int = 0                     # recurrent layers: the stacked layer
+    projection: bool = False           # recurrent layers: the proj_size projection
     @property
     def type_name(self) -> str: ...
     def describe(self) -> LayerInfo: ...
@@ -119,9 +121,10 @@ class NetworkArchitecture:
 | `unsupported` | labels of leaf modules with role `OTHER`, without repeats |
 | `total_parameters`, `trainable_parameters` | initialised parameter elements of the whole network, and of those with `requires_grad` |
 | `traced` | `True` when built from an explicit `order`, i.e. a recorded forward pass |
-| `name` (layer, operation) | qualified module name such as `enc.0`, or the class name when the model itself is the leaf or the weight owner |
+| `name` (layer, operation) | qualified module name such as `enc.0`, or the class name when the model itself is the leaf or the weight owner. The stages of a recurrent module add `.l<k>` for stacked layer `k ≥ 1` and `.proj` for a projection: `rnn`, `rnn.proj`, `rnn.l1`, `rnn.l1.proj` |
+| `stage`, `projection` (live layer) | the stacked layer and whether it is the `proj_size` projection, for the stages of a recurrent module. `0` and `False` for every other layer. Not part of `LayerInfo`: the stage is in the name |
 | `summary`, `in_features`, `out_features` | `summarize()` and `connection_shape()` ([Tracking Layer Classification](Tracking-Layer-Classification)) |
-| `parameters` (layer) | initialised parameter elements of that module (weight and bias). A weight owner with children counts only the parameters it holds itself |
+| `parameters` (layer) | initialised parameter elements of that module (weight and bias). A weight owner with children counts only the parameters it holds itself, and a recurrent stage only its own (`weight_ih`, `weight_hh` and the biases of its stacked layer, or `weight_hr` for a projection) |
 | `operations` (layer) | operations applied to its output, in execution order |
 
 ## Used by / uses

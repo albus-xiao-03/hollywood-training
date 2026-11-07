@@ -37,6 +37,18 @@ class TensorStats:
 
 
 @dataclass(frozen=True, slots=True, eq=False)
+class Recurrence:
+    """The recurrent connections of a layer: outputs at one time step feed the layer at the
+    next. ``matrix[j, i]`` says how strongly displayed output ``source_index[i]`` of the
+    layer ``source`` feeds displayed output ``out_index[j]`` of this layer."""
+
+    source: str  # the layer whose outputs feed back: this layer, or its ".proj" layer
+    matrix: np.ndarray  # (len(out_index), len(source_index)) float32
+    delta: np.ndarray | None  # change of `matrix` since the previous *baseline* snapshot
+    source_index: np.ndarray  # displayed output indices of `source`
+
+
+@dataclass(frozen=True, slots=True, eq=False)
 class LayerWeights:
     """Displayed connection matrix of one layer at one point in time."""
 
@@ -51,6 +63,7 @@ class LayerWeights:
     stats: WeightStats  # of the full tensor `matrix` is drawn from
     update_ratio: float | None  # ||delta|| / ||previous matrix||
     tensors: tuple[TensorStats, ...] = ()  # every weight tensor of the layer
+    recurrence: Recurrence | None = None  # recurrent layers: the hidden-to-hidden weights
 
     @property
     def truncated(self) -> bool:

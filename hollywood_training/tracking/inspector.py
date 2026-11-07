@@ -28,11 +28,16 @@ from .architecture import LayerOperation, NetworkArchitecture, TrackedLayer
 from .decorator import TrackOptions
 from .layers import (
     OPERATION_ROLES,
+    RECURRENT_CELLS,
+    RECURRENT_LAYERS,
     LayerRole,
     classify,
     connection_shape,
     is_pass_through,
     is_uninitialized,
+    recurrent_parameters,
+    recurrent_stages,
+    stage_name,
     summarize,
 )
 
@@ -104,6 +109,19 @@ def count_parameters(
     )
 
 
+def _layer_parameters(module: nn.Module, stage: int, projection: bool) -> int:
+    """Parameter elements a drawn layer stands for: those of its stage for a recurrent
+    layer; only its own for a weight owner with children, whose child layers (e.g.
+    ``MultiheadAttention.out_proj``) count where they are drawn; all of them otherwise."""
+    if isinstance(module, RECURRENT_LAYERS + RECURRENT_CELLS):
+        return sum(
+            tensor.numel()
+            for _name, tensor in recurrent_parameters(module, stage, projection)
+            if not is_uninitialized(tensor)
+        )
+    return count_parameters(module, recurse=not _has_children(module))
+
+
 def build_architecture(
     model: nn.Module,
     options: TrackOptions | None = None,
@@ -124,7 +142,7 @@ def build_architecture(
     layers: list[TrackedLayer] = []
     input_operations: list[LayerOperation] = []
     unsupported: list[str] = []
-    seen_connections: set[int] = set()
+    last_layer: dict[int, TrackedLayer] = {}  # module -> its last drawn layer (stage)
     current: TrackedLayer | None = None
 
     for name, module in sequence:
@@ -133,22 +151,25 @@ def build_architecture(
             continue
         role = classify(module)
         if role is LayerRole.CONNECTION:
-            if id(module) in seen_connections:  # a module that runs twice is drawn once
-                current = next(layer for layer in layers if layer.module is module)
+            if id(module) in last_layer:  # a module that runs twice is drawn once
+                current = last_layer[id(module)]
                 continue
-            seen_connections.add(id(module))
-            in_features, out_features = connection_shape(module)
-            current = TrackedLayer(
-                name=label,
-                module=module,
-                summary=summarize(module),
-                in_features=in_features,
-                out_features=out_features,
-                # a weight owner with children counts its own parameters: those of a child
-                # that is a layer itself (MultiheadAttention.out_proj) count there
-                parameters=count_parameters(module, recurse=not _has_children(module)),
-            )
-            layers.append(current)
+            for stage, projection in recurrent_stages(module):  # one stage for most modules
+                in_features, out_features = connection_shape(
+                    module, stage=stage, projection=projection
+                )
+                current = TrackedLayer(
+                    name=stage_name(label, stage, projection),
+                    module=module,
+                    summary=summarize(module, stage=stage, projection=projection),
+                    in_features=in_features,
+                    out_features=out_features,
+                    parameters=_layer_parameters(module, stage, projection),
+                    stage=stage,
+                    projection=projection,
+                )
+                layers.append(current)
+            last_layer[id(module)] = current
         elif role in OPERATION_ROLES:
             operation = LayerOperation(label, role, module, summarize(module))
             (current.operations if current is not None else input_operations).append(operation)

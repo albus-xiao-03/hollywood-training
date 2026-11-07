@@ -55,6 +55,22 @@ content. It compares by value.
 
 ```python
 @dataclass(frozen=True, slots=True, eq=False)
+class Recurrence:
+    source: str
+    matrix: np.ndarray  # (len(out_index), len(source_index)) float32
+    delta: np.ndarray | None
+    source_index: np.ndarray
+```
+
+The recurrent connections of a layer (a stage of an `RNN`, `LSTM` or `GRU`, or a cell):
+its outputs at one time step feed the layer at the next. `matrix[j, i]` says how
+strongly output `source_index[i]` of the layer `source` feeds output `out_index[j]` of
+this layer. `source` is the layer itself, or its `.proj` layer when an LSTM has
+`proj_size`. `delta` is the change since the baseline snapshot, like
+`LayerWeights.delta`.
+
+```python
+@dataclass(frozen=True, slots=True, eq=False)
 class LayerWeights:
     name: str
     matrix: np.ndarray  # (len(out_index), len(in_index)) float32
@@ -67,6 +83,7 @@ class LayerWeights:
     stats: WeightStats  # of the full tensor `matrix` is drawn from
     update_ratio: float | None  # ||delta|| / ||previous matrix||
     tensors: tuple[TensorStats, ...] = ()  # every weight tensor of the layer
+    recurrence: Recurrence | None = None  # recurrent layers: the hidden-to-hidden weights
 
     @property
     def truncated(self) -> bool: ...
@@ -80,9 +97,10 @@ class LayerWeights:
 | `delta` | `matrix` minus the same layer's matrix in the baseline snapshot. `None` when there is no baseline for the layer, or the displayed indices differ |
 | `in_index`, `out_index` | sorted `int64` feature indices that are displayed |
 | `in_features`, `out_features` | full layer sizes |
-| `stats` | `WeightStats` of the full tensor `matrix` is drawn from: the layer's `weight` for `Linear`, convolution and embedding layers, `in_proj_weight` for attention, or its separate query, key and value weights taken together |
+| `stats` | `WeightStats` of the full tensor `matrix` is drawn from: the layer's `weight` for `Linear`, convolution and embedding layers, `in_proj_weight` for attention, its separate query, key and value weights taken together, or the `weight_ih` (`weight_hr`) of every direction of a recurrent stage |
 | `update_ratio` | `norm(delta) / (norm(previous.matrix) + 1e-12)`, Frobenius norms of the displayed matrices. `None` together with `delta` |
 | `tensors` | `TensorStats` of every weight tensor of the layer, in registration order: one (`weight`) for `Linear`, convolution and embedding layers, more for recurrent and attention layers. A snapshot made without them leaves the default `()` |
+| `recurrence` | the `Recurrence` of a recurrent stage, read from `weight_hh`. `None` for every other layer, including projection stages |
 
 `truncated` is `True` when fewer indices than features are displayed on either side.
 

@@ -18,6 +18,7 @@ from .roles import LayerRole
 from .weights import (
     DEFAULT_NEURON_LIMIT,
     LayerWeights,
+    Recurrence,
     TensorStats,
     WeightSnapshot,
     WeightStats,
@@ -55,6 +56,7 @@ __all__ = [
     "NetworkArchitecture",
     "NetworkTracker",
     "OperationInfo",
+    "Recurrence",
     "TensorStats",
     "TrackOptions",
     "TrackedLayer",
