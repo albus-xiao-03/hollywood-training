@@ -30,8 +30,9 @@ class NetworkTracker:
     ) -> None
 ```
 
-* `model`: the network to follow. Wrappers such as `nn.DataParallel` are looked through
-  when the architecture is built.
+* `model`: the network to follow. Wrappers such as `nn.DataParallel` and the
+  `OptimizedModule` returned by `torch.compile` are looked through when the architecture
+  is built.
 * `max_neurons`: neurons kept per column in snapshots. Wider layers are sampled. It is
   stored as `int(max_neurons)`.
 * `options`: display options. When `None`, the tracker uses `track_options(model) or

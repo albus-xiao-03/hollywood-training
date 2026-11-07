@@ -12,8 +12,9 @@ modules actually ran in one forward pass, recorded by `ForwardTrace` with
 
 ## Responsibilities
 
-* Look through `nn.DataParallel` / `DistributedDataParallel` wrappers, list leaf modules
-  and count initialised parameters.
+* Look through `nn.DataParallel` / `DistributedDataParallel` wrappers and the
+  `OptimizedModule` that `torch.compile` returns, list leaf modules and count initialised
+  parameters.
 * Group a module sequence into `TrackedLayer`s, `LayerOperation`s and unsupported names.
 * Record the execution order of the first complete forward pass.
 * Fingerprint an architecture, so a rebuilt one can be compared with the previous one.
@@ -29,7 +30,13 @@ def count_parameters(module: nn.Module, *, trainable_only: bool = False) -> int
 ```
 
 * `unwrap`: follows `.module` while the model is an `nn.DataParallel` or
-  `nn.parallel.DistributedDataParallel`, so nested wrappers are handled too.
+  `nn.parallel.DistributedDataParallel`. It also looks through the `OptimizedModule` that
+  `torch.compile` returns: that wrapper holds the original network as its only child,
+  `_orig_mod`, read through the public `named_children()`. PyTorch has no public unwrap
+  API, so the wrapper is recognised by its class name, without importing the compiler.
+  Wrappers can nest in any order, e.g. `torch.compile(nn.DataParallel(net))`. The result
+  is the user's network, so a compiled network keeps its own class name (`TinyNet`, not
+  `OptimizedModule`) and its own layer names (`fc1`, not `_orig_mod.fc1`).
 * `leaf_modules`: `(qualified_name, module)` for every module of `unwrap(model)` without
   children, in `named_modules()` order. The root (name `""`) is listed only when it has no
   children. A module registered under two names is listed once, because

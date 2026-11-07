@@ -109,8 +109,9 @@ Structure comes from `named_modules()`, `children()`, `parameters()`,
 `type(module).__name__`. Details come from public module attributes: `weight`, `bias`,
 `in_channels`, `out_channels`, `groups`, `kernel_size`, `p`, `negative_slope`,
 `num_features`, `normalized_shape`, and `.module` of `DataParallel` /
-`DistributedDataParallel` wrappers. Weights are copied with ordinary tensor operations
-under `torch.no_grad()`. User code is never inspected.
+`DistributedDataParallel` wrappers. The network inside `torch.compile`'s `OptimizedModule`
+is its `_orig_mod` child, read through `named_children()`. Weights are copied with
+ordinary tensor operations under `torch.no_grad()`. User code is never inspected.
 
 ## Example
 

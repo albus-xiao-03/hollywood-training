@@ -8,6 +8,10 @@ Two sources of layer order are supported, both through official PyTorch APIs:
   recorded with ``register_forward_hook`` by :class:`ForwardTrace`. This catches modules
   that are registered in a different order than they run, activation modules that are
   reused, and the shapes of lazy modules.
+
+Wrappers are looked through (:func:`unwrap`): ``nn.DataParallel``,
+``DistributedDataParallel`` and the ``OptimizedModule`` that ``torch.compile`` returns. The
+architecture always describes the user's own network, with its own class and layer names.
 """
 
 from __future__ import annotations
@@ -33,11 +37,30 @@ ModuleSequence = Sequence[tuple[str, nn.Module]]
 _WRAPPERS: tuple[type[nn.Module], ...] = (nn.DataParallel, nn.parallel.DistributedDataParallel)
 
 
+def _compiled_original(model: nn.Module) -> nn.Module | None:
+    """The network inside ``torch.compile``'s ``OptimizedModule`` wrapper, or None.
+
+    PyTorch has no public API that unwraps a compiled model, and importing its compiler
+    package for an ``isinstance`` check would load the whole compiler stack. The wrapper is
+    therefore recognised by its class name, and the original network is read through the
+    public ``named_children()``: the wrapper registers it as its only child, ``_orig_mod``.
+    """
+    if type(model).__name__ != "OptimizedModule":
+        return None
+    inner = dict(model.named_children()).get("_orig_mod")
+    return inner if isinstance(inner, nn.Module) else None
+
+
 def unwrap(model: nn.Module) -> nn.Module:
-    """The network inside ``nn.DataParallel`` / ``DistributedDataParallel`` wrappers."""
-    while isinstance(model, _WRAPPERS):
-        model = model.module
-    return model
+    """The network inside ``nn.DataParallel`` / ``DistributedDataParallel`` wrappers and
+    inside the ``OptimizedModule`` that ``torch.compile`` returns, in any nesting."""
+    while True:
+        if isinstance(model, _WRAPPERS):
+            model = model.module
+        elif (inner := _compiled_original(model)) is not None:
+            model = inner
+        else:
+            return model
 
 
 def leaf_modules(model: nn.Module) -> list[tuple[str, nn.Module]]:

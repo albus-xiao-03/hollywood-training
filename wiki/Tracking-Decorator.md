@@ -149,6 +149,7 @@ ht.is_tracked(nn.Sequential())                 # False: other instances are unaf
 * `track_options` and `is_tracked` expect an **instance** and use it exactly as passed.
   `is_tracked(SpiralNet)`, the class, is `False`, because the lookup walks
   `type(SpiralNet).__mro__`, which is `(type, object)`.
-* Wrappers are not looked through: `is_tracked(nn.DataParallel(net))` is `False`.
+* Wrappers are not looked through: `is_tracked(nn.DataParallel(net))` and
+  `is_tracked(torch.compile(net))` are `False`.
   `NetworkTracker` unwraps by itself (see
   [Tracking Network Tracker](Tracking-Network-Tracker)).
