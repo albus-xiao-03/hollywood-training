@@ -38,6 +38,7 @@ too, including the lazy variants (`LazyLinear`, `LazyConv2d`, ...).
 | `CONVOLUTION_LAYERS` | `Conv1d`, `Conv2d`, `Conv3d` |
 | `TRANSPOSED_CONVOLUTION_LAYERS` | `ConvTranspose1d`, `ConvTranspose2d`, `ConvTranspose3d` |
 | `EMBEDDING_LAYERS` | `Embedding`, `EmbeddingBag` |
+| `BILINEAR_LAYERS` | `Bilinear` |
 | `ACTIVATION_LAYERS` | `ReLU`, `ReLU6`, `LeakyReLU`, `PReLU`, `RReLU`, `ELU`, `SELU`, `CELU`, `GELU`, `SiLU`, `Mish`, `Sigmoid`, `LogSigmoid`, `Hardsigmoid`, `Tanh`, `Hardtanh`, `Tanhshrink`, `Hardswish`, `Softplus`, `Softsign`, `Softshrink`, `Hardshrink`, `Threshold`, `GLU`, `Softmax`, `Softmin`, `LogSoftmax`, `Softmax2d` |
 | `NORMALIZATION_LAYERS` | `BatchNorm1d`, `BatchNorm2d`, `BatchNorm3d`, `SyncBatchNorm`, `LayerNorm`, `GroupNorm`, `InstanceNorm1d`, `InstanceNorm2d`, `InstanceNorm3d`, `LocalResponseNorm`, `RMSNorm`, `CrossMapLRN2d` |
 | `REGULARIZATION_LAYERS` | `Dropout`, `Dropout1d`, `Dropout2d`, `Dropout3d`, `AlphaDropout`, `FeatureAlphaDropout` |
@@ -49,6 +50,7 @@ too, including the lazy variants (`LazyLinear`, `LazyConv2d`, ...).
 LINEAR_LAYERS = _public_classes("Linear")      # every tuple above is built this way
 CONNECTION_LAYERS = (
     LINEAR_LAYERS + CONVOLUTION_LAYERS + TRANSPOSED_CONVOLUTION_LAYERS + EMBEDDING_LAYERS
+    + BILINEAR_LAYERS
 )
 OPERATION_ROLES = frozenset({LayerRole.ACTIVATION, LayerRole.NORMALIZATION,
                              LayerRole.REGULARIZATION, LayerRole.POOLING, LayerRole.RESHAPE})
@@ -90,8 +92,8 @@ def classify(module: nn.Module) -> LayerRole
 Checks run in this order, and the first match wins: `CONNECTION_LAYERS` → `CONNECTION`,
 `ACTIVATION_LAYERS`, `NORMALIZATION_LAYERS`, `REGULARIZATION_LAYERS`, `POOLING_LAYERS`,
 `RESHAPE_LAYERS`, then a non-empty `weight_tensors(module)` → `CONNECTION` (any other
-weight owner: `Bilinear`, the recurrent layers, `MultiheadAttention`, custom modules), and
-otherwise `OTHER`. It works on any module, with or without children.
+weight owner: the recurrent layers, `MultiheadAttention`, custom modules), and otherwise
+`OTHER`. It works on any module, with or without children.
 
 ```python
 def connection_shape(module: nn.Module) -> tuple[int | None, int | None]
@@ -104,6 +106,7 @@ Returns `(in_features, out_features)`:
 | no weight tensor (e.g. a lazy module before its first pass) | `(None, None)` |
 | `Embedding`, `EmbeddingBag` | `(num_embeddings, embedding_dim)`, from `weight.shape` |
 | `Conv*`, `ConvTranspose*` | `(in_channels, out_channels)` |
+| `Bilinear` | `(in1_features + in2_features, out_features)`: both inputs, x1 first |
 | any other weight owner: `primary_weight` read as `(out, in, ...)` | `(shape[1], shape[0])`, e.g. `(in, out)` for a 2-D `weight` |
 
 ```python
@@ -113,6 +116,7 @@ def summarize(module: nn.Module) -> str
 | Case | Format | Example |
 |---|---|---|
 | connection layer of unknown shape | `{name} (uninitialised)` | `LazyLinear (uninitialised)` |
+| `Bilinear` | `{name} {in1}+{in2}→{out}` | `Bilinear 3+4→2` |
 | connection layer | `{name} {in}→{out}`, plus ` k{kernel}` when the module has `kernel_size` (tuple parts joined by `x`) | `Linear 2→16`, `Conv2d 3→8 k3x3`, `MultiheadAttention 8→24` |
 | regularization | `{name}(p={p:g})` | `Dropout(p=0.2)` |
 | `LeakyReLU` | `{name}({negative_slope:g})` | `LeakyReLU(0.1)` |
@@ -133,7 +137,8 @@ listed elsewhere therefore keeps its listed role: `LayerNorm((4, 5))` and `RMSNo
 * [Tracking Inspector](Tracking-Inspector): `classify`, `connection_shape`, `summarize`,
   `is_pass_through`, `is_uninitialized`, `OPERATION_ROLES`.
 * [Tracking Snapshots](Tracking-Snapshots): `primary_weight`, `weight_tensors`,
-  `is_uninitialized`, and the convolution, transposed convolution and embedding tuples.
+  `is_uninitialized`, and the convolution, transposed convolution, embedding and bilinear
+  tuples.
 * [Training Descriptions](Training-Descriptions): `is_uninitialized`, to find the model's
   device.
 * Lazily exported: `classify`, `connection_shape`, `summarize`.

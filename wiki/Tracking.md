@@ -108,9 +108,10 @@ first use (PEP 562):
 ## How the model is read
 
 Structure comes from `named_modules()`, `children()`, `parameters()`,
-`register_forward_hook`, public `torch.nn` classes looked up by name, and
-`type(module).__name__`. Details come from public module attributes: `weight`, `bias`,
-`in_channels`, `out_channels`, `groups`, `kernel_size`, `p`, `negative_slope`,
+`named_parameters(recurse=False)`, `register_forward_hook`, `register_forward_pre_hook`,
+public `torch.nn` classes looked up by name, and `type(module).__name__`. Details come from
+public module attributes: `weight`, `bias`, `in_channels`, `out_channels`, `groups`,
+`kernel_size`, `in1_features`, `in2_features`, `out_features`, `p`, `negative_slope`,
 `num_features`, `normalized_shape`, and `.module` of `DataParallel` /
 `DistributedDataParallel` wrappers. The network inside `torch.compile`'s `OptimizedModule`
 is its `_orig_mod` child, read through `named_children()`. Weights are copied with

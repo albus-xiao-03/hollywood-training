@@ -30,6 +30,7 @@ TRANSPOSED_CONVOLUTION_LAYERS = _public_classes(
     "ConvTranspose1d", "ConvTranspose2d", "ConvTranspose3d"
 )
 EMBEDDING_LAYERS = _public_classes("Embedding", "EmbeddingBag")
+BILINEAR_LAYERS = _public_classes("Bilinear")  # two inputs: x1 (in1) and x2 (in2)
 ACTIVATION_LAYERS = _public_classes(
     "ReLU", "ReLU6", "LeakyReLU", "PReLU", "RReLU", "ELU", "SELU", "CELU", "GELU", "SiLU",
     "Mish", "Sigmoid", "LogSigmoid", "Hardsigmoid", "Tanh", "Hardtanh", "Tanhshrink",
@@ -56,7 +57,11 @@ RESHAPE_LAYERS = _public_classes(
 PASS_THROUGH_LAYERS = _public_classes("Identity")
 
 CONNECTION_LAYERS = (
-    LINEAR_LAYERS + CONVOLUTION_LAYERS + TRANSPOSED_CONVOLUTION_LAYERS + EMBEDDING_LAYERS
+    LINEAR_LAYERS
+    + CONVOLUTION_LAYERS
+    + TRANSPOSED_CONVOLUTION_LAYERS
+    + EMBEDDING_LAYERS
+    + BILINEAR_LAYERS
 )
 OPERATION_ROLES = frozenset(
     {
@@ -146,6 +151,8 @@ def connection_shape(module: nn.Module) -> tuple[int | None, int | None]:
         return int(num_embeddings), int(embedding_dim)
     if isinstance(module, CONVOLUTION_LAYERS + TRANSPOSED_CONVOLUTION_LAYERS):
         return int(module.in_channels), int(module.out_channels)
+    if isinstance(module, BILINEAR_LAYERS):  # both inputs, x1 then x2
+        return int(module.in1_features) + int(module.in2_features), int(module.out_features)
     # Linear and any other weight owner: the tensor is read as (out, in, ...)
     return int(weight.shape[1]), int(weight.shape[0])
 
@@ -164,6 +171,8 @@ def summarize(module: nn.Module) -> str:
         in_features, out_features = connection_shape(module)
         if in_features is None:
             return f"{name} (uninitialised)"
+        if isinstance(module, BILINEAR_LAYERS):
+            return f"{name} {module.in1_features}+{module.in2_features}→{out_features}"
         text = f"{name} {in_features}→{out_features}"
         kernel = getattr(module, "kernel_size", None)
         return f"{text} k{_kernel_text(kernel)}" if kernel is not None else text

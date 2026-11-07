@@ -8,6 +8,9 @@ Every connection layer is reduced to a **connection matrix** shaped ``(out, in)`
   convolutions (unconnected channel pairs are 0).
 * ``ConvTranspose*``: the same, transposed back to ``(out, in)``.
 * ``Embedding`` / ``EmbeddingBag``: the transposed table, ``(embedding_dim, num_embeddings)``.
+* ``Bilinear``: the inputs are x1's features, then x2's. ``W[j, i, k]`` links x1 feature
+  ``i`` and x2 feature ``k`` to output ``j``: an x1 feature gets the mean over ``k``, an x2
+  feature the mean over ``i``.
 * Any other weight owner: its primary weight tensor read as ``(out, in, ...)``, with the
   signed mean over the remaining dimensions.
 
@@ -28,6 +31,7 @@ from torch import nn
 
 from .architecture import NetworkArchitecture, TrackedLayer
 from .layers import (
+    BILINEAR_LAYERS,
     CONVOLUTION_LAYERS,
     EMBEDDING_LAYERS,
     TRANSPOSED_CONVOLUTION_LAYERS,
@@ -117,6 +121,10 @@ def connection_matrix(
         out_pg = int(module.out_channels) // groups
         in_pg = int(module.in_channels) // groups
         return _grouped(block, rows_out, cols_in, out_pg, in_pg)
+    if isinstance(module, BILINEAR_LAYERS):  # (out, in1, in2): inputs x1, then x2
+        rows = weight.index_select(0, rows_out).float()
+        both = torch.cat((rows.mean(dim=2), rows.mean(dim=1)), dim=1)  # (k_out, in1 + in2)
+        return both.index_select(1, cols_in)
     # Linear and any other weight owner: (out, in, ...), averaged over the other dimensions
     return _kernel_mean(weight.index_select(0, rows_out).index_select(1, cols_in))
 

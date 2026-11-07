@@ -36,6 +36,7 @@ strongly input `in_index[i]` feeds output `out_index[j]`:
 | `Embedding`, `EmbeddingBag` | `(num_embeddings, embedding_dim)` | the transposed table, `(embedding_dim, num_embeddings)` |
 | `ConvTranspose1d/2d/3d` | `(in, out / groups, *kernel)` | signed mean over the kernel window, block-diagonal for groups, transposed back to `(out, in)` |
 | `Conv1d/2d/3d` | `(out, in / groups, *kernel)` | signed mean over the kernel window. Channel pairs in different groups are `0` |
+| `Bilinear` | `(out, in1, in2)` | inputs x1 then x2, `(out, in1 + in2)`: an x1 feature gets the mean over x2, an x2 feature the mean over x1 |
 | any other weight owner (`Linear`, linear-like, and any module with a weight tensor) | `(out, in, ...)` | the tensor itself when it is 2-D, otherwise its signed mean over the dimensions after the first two |
 
 ```python
@@ -104,6 +105,12 @@ channel `j` belongs to group `j // (out_channels // groups)`, and input channel 
 group `i // (in_channels // groups)`. The entry is the kernel mean of the local channel
 pair when both groups match, and `0` otherwise. A depthwise convolution
 (`groups == channels`) therefore yields a diagonal matrix.
+
+**Bilinear layers.** `nn.Bilinear` computes `y[j] = x1 · W[j] · x2 + b[j]`, so the weight
+`W[j, i, k]` links x1 feature `i` and x2 feature `k` to output `j`. The drawn inputs are
+the in1 features of x1 followed by the in2 features of x2. The entry of x1 feature `i` is
+the signed mean of `W[j, i, :]`, and the entry of x2 feature `k` is the signed mean of
+`W[j, :, k]`, the same rule as the convolution kernel mean.
 
 ## Used by / uses
 
